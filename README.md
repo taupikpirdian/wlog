@@ -6,6 +6,7 @@
 
 - Go 1.22 atau lebih baru
 - macOS atau Linux
+- Git dengan dukungan offline capture (`--no-lazy-fetch`) untuk `wl git`; implementasi diverifikasi pada Git 2.52.0
 - Koneksi internet saat pertama kali build untuk mengunduh Go modules
 
 ## Instalasi
@@ -105,6 +106,20 @@ Setiap command menyimpan satu aktivitas `NOTE` pada tiket dan sesi aktif, lalu m
 
 Note tetap bekerja di luar Git dan mengikuti konteks repository sesi aktif. Menambahkan note tidak mengubah durasi sesi. Tanpa sesi aktif, command gagal dan menyarankan `wl s <ticket> "<title>"`. Jika sesi berubah saat penyimpanan, command gagal; ulangi untuk memakai sesi terbaru.
 
+## Mencatat Git commit
+
+Di dalam repository yang sudah memiliki commit, jalankan:
+
+```sh
+wl git
+```
+
+Command mencatat HEAD terbaru beserta message, branch bila tersedia, file yang berubah, statistik baris teks, dan waktu commit. Tiket dipilih berdasarkan urutan: commit message, sesi aktif, branch, lalu `UNASSIGNED`. Jika tiket sama dengan sesi aktif, commit dikaitkan ke sesi tersebut. Jika berbeda, commit disimpan pada tiketnya tanpa sesi dan menampilkan warning.
+
+Commit tetap tercatat tanpa sesi aktif dan tidak menambah durasi pekerjaan. Capture ulang repository+hash yang sama menampilkan `✓ Commit already captured.` tanpa menggandakan atau memindahkan catatan lama. Command tidak memasang Git hook; integrasi otomatis lewat hook tersedia pada tahap berikutnya.
+
+`capture_changed_files` dan `capture_diff_stat` dapat dinonaktifkan secara terpisah. Statistik mengecualikan isi `.env*`; binary tidak menambah jumlah baris teks. Full diff belum dikumpulkan, termasuk bila `capture_full_diff: true` diatur—command memberi warning dan tetap menyimpan metadata. Metadata tambahan yang tidak tersedia menghasilkan warning; kegagalan identitas Git atau penyimpanan menghasilkan exit non-zero.
+
 ## Menjalankan dari source
 
 Untuk menjalankan langsung tanpa memasang executable:
@@ -143,7 +158,26 @@ ai:
 
 Nilai yang sudah ada dipertahankan saat `wl` dijalankan kembali. `capture_full_diff` dan `include_diff` nonaktif secara default.
 
+## Unit test dan coverage
+
+Seluruh package dengan kode executable di `application` dan `domain` memiliki unit test dengan **100% statement coverage**. Package root yang hanya berisi `doc.go` tidak memiliki statement yang dapat diukur.
+
+Jalankan unit test kedua layer dan buat laporan coverage:
+
+```sh
+go test -race -coverprofile=coverage.out ./application/... ./domain/...
+go tool cover -func=coverage.out
+go tool cover -html=coverage.out
+```
+
+Untuk regression test seluruh project:
+
+```sh
+go test -race ./...
+go vet ./...
+```
+
 ## Status fitur
 
-- Tersedia: inisialisasi CLI/local storage, pengelolaan tiket di layer application/storage, command start/stop session, serta note aktivitas.
-- Perintah Git capture, summary, description, dan koreksi waktu sesi belum tersedia.
+- Tersedia: inisialisasi CLI/local storage, pengelolaan tiket di layer application/storage, start/stop session, note aktivitas, dan Git commit capture.
+- Pemasangan Git hook, summary, description, dan koreksi waktu sesi belum tersedia.

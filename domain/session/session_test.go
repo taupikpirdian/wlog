@@ -34,3 +34,17 @@ func TestCompleteUsesActualSeconds(t *testing.T) {
 		})
 	}
 }
+
+func TestTitleValidationAndCompletedSession(t *testing.T) {
+	title, err := ValidateTitle("  Support QA  ")
+	if err != nil || title != "Support QA" {
+		t.Fatalf("title=%q error=%v", title, err)
+	}
+	if _, err := ValidateTitle(" \t\n "); !errors.Is(err, ErrEmptyTitle) {
+		t.Fatalf("empty title: %v", err)
+	}
+	completed := Session{Status: Completed, StartedAt: time.Now()}
+	if _, err := completed.Complete(time.Now()); !errors.Is(err, ErrConflict) {
+		t.Fatalf("completed session: %v", err)
+	}
+}

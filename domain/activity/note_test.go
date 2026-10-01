@@ -43,3 +43,9 @@ func TestNewNoteContentAndTime(t *testing.T) {
 		})
 	}
 }
+
+func TestNoteRejectsCompletedSession(t *testing.T) {
+	if _, err := NewNote("Note", session.Session{Status: session.Completed}, time.Now()); !errors.Is(err, session.ErrConflict) {
+		t.Fatalf("completed session: %v", err)
+	}
+}

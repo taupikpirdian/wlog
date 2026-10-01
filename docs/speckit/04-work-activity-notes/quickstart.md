@@ -2,7 +2,7 @@
 
 ## Prerequisites and Isolation
 
-Panduan ini dijalankan setelah fitur 04 diimplementasikan; saat ini merupakan acceptance guide, bukan hasil test. Build executable terbaru, bukan binary fitur 03.
+Fitur 04 sudah diimplementasikan. Panduan berikut mendokumentasikan skenario validasi yang dapat diulang; hasil verifikasi implementasi dicatat pada bagian terakhir. Build executable terbaru, bukan binary fitur 03.
 
 ```sh
 go test -race ./...
@@ -93,3 +93,12 @@ Expected: bantuan mencantumkan alias dan satu argumen. Spy factory command membu
 Pada database test yang sudah diinisialisasi dengan satu session aktif, ukur executable hasil build untuk penambahan note. Jangan memakai `go run` sebagai pengukuran karena mencakup proses build. Ulangi minimal 20 kali; catat perangkat, jumlah row sebelum test, waktu tiap operasi, dan median/p95.
 
 Expected: command note pada penggunaan lokal biasa selesai <200 ms sesuai PRD. Pisahkan hasil cold initialization dan lock wait; jangan menyatakan target telah terpenuhi sebelum pengukuran dilakukan.
+
+## Implementation Verification — 2026-10-01
+
+- `go test -race ./...`: lulus, termasuk regression fitur 03 serta domain note, SQLite activity, dan command note/n.
+- `go vet ./...`: bersih; executable production dan fixture validasi berhasil dibuild.
+- Fixture database sementara membuktikan start, 20 note, stop, dan error no-active tanpa penambahan note setelah stop.
+- Storage tests memeriksa rollback INSERT dan pembatalan sebelum COMMIT, konflik snapshot lewat dua koneksi, dua note bersamaan, repository nullable/salinan session, metadata Git kosong, dan preservasi teks Unicode/multiline/SQL-like.
+- Delivery tests memeriksa alias/output, error tanpa sukses, penutupan koneksi, bantuan/argumen tanpa storage, serta error output setelah commit yang tidak menghapus note.
+- Pengukuran executable fixture pada macOS 26.5.2 arm64, database awal 0 activity, 20 sampel: median **9,73 ms**, p95 **13,24 ms**, maksimum **13,84 ms**. Fixture memakai command/application/storage yang sama dengan injeksi path database sementara; pembacaan config pribadi, cold initialization, dan lock contention tidak termasuk. Hasil ini tidak menyatakan performa end-to-end production pada database pengguna sudah diukur.
