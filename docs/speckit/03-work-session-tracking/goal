@@ -1,0 +1,20 @@
+SpecKit 03 — Work Session Tracking
+Ini mulai membuat wl berguna untuk pekerjaan sehari-hari.
+wl s OOT-3751 "Fix tax calculation"
+
+# working...
+
+wl x
+
+Harus mencatat:
+started_at
+ended_at
+duration_seconds
+ticket
+title
+repository
+
+Rules penting:
+Hanya boleh ada 1 ACTIVE session.
+Duration dihitung dari actual timestamp.
+AI tidak boleh menentukan duration.

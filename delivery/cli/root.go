@@ -14,7 +14,7 @@ type Initializer interface {
 	Initialize(context.Context) (bootstrap.Result, error)
 }
 
-func NewRootCommand(initializer Initializer, version string) *cobra.Command {
+func NewRootCommand(initializer Initializer, version string, sessions SessionFactory) *cobra.Command {
 	root := &cobra.Command{
 		Use:           "wl",
 		Short:         "Capture developer work activity and prepare Jira worklogs",
@@ -59,5 +59,6 @@ func NewRootCommand(initializer Initializer, version string) *cobra.Command {
 			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "wl version %s\n", version)
 		},
 	})
+	addSessionCommands(root, sessions)
 	return root
 }

@@ -1,6 +1,6 @@
 # Developer Worklog CLI
 
-`wl` adalah CLI lokal untuk menyiapkan penyimpanan worklog developer. Versi saat ini menyediakan inisialisasi database dan konfigurasi, serta perintah bantuan dan versi.
+`wl` adalah CLI lokal untuk mencatat sesi kerja developer berdasarkan tiket, dengan database SQLite dan konfigurasi lokal.
 
 ## Prasyarat
 
@@ -65,6 +65,32 @@ wl version
 
 Perintah help dan version tidak membuat atau membuka database.
 
+## Mencatat sesi kerja
+
+Mulai sesi dengan key tiket dan judul aktivitas:
+
+```sh
+wl start OOT-3751 "Fix tax calculation"
+# Alias
+wl s OOT-3751 "Fix tax calculation"
+```
+
+Tiket dibuat otomatis bila belum ada. Judul sesi tidak mengubah judul master tiket. Key tiket harus sesuai `ticket.pattern`; judul sesi wajib diisi. Konfigurasi dan database disiapkan otomatis bila command ini merupakan pemakaian pertama.
+
+Hanya satu sesi dapat aktif untuk seluruh database, termasuk saat berpindah repository. Jika ada sesi aktif, `start` menampilkan detailnya dan meminta konfirmasi `[Y/n]` di terminal interaktif. Enter, `y`, atau `yes` menyelesaikan sesi lama dan memulai sesi baru secara atomik; `n` atau `no` membatalkan. Input dari pipe dan EOF tidak memberikan persetujuan.
+
+Selesaikan sesi aktif:
+
+```sh
+wl stop
+# Alias
+wl x
+```
+
+Durasi dihitung dari waktu mulai hingga selesai dan disimpan dalam detik. Waktu ditampilkan sesuai timezone perangkat. Jam perangkat yang lebih awal dari waktu mulai menghasilkan error dan sesi tetap aktif. Menjalankan `stop` tanpa sesi aktif juga menghasilkan error.
+
+Jika dijalankan dalam repository Git, sesi menyimpan path root repository. Command tetap bekerja di luar Git atau ketika Git tidak tersedia.
+
 ## Menjalankan dari source
 
 Untuk menjalankan langsung tanpa memasang executable:
@@ -105,7 +131,8 @@ Nilai yang sudah ada dipertahankan saat `wl` dijalankan kembali. `capture_full_d
 
 ## Status fitur
 
-- Fitur yang tersedia saat ini adalah inisialisasi CLI dan local storage.
-- Perintah session, note, Git capture, summary, dan description direncanakan untuk tahap berikutnya dan belum tersedia.
+- Tersedia: inisialisasi CLI/local storage, pengelolaan tiket di layer application/storage, serta command start/stop session.
+- Perintah note, Git capture, summary, description, dan koreksi waktu sesi belum tersedia.
 
 Rincian implementasi fitur awal ada di [docs/speckit/01-initiate-cli-and-local-storage](docs/speckit/01-initiate-cli-and-local-storage/).
+Spesifikasi sesi kerja ada di [docs/speckit/03-work-session-tracking](docs/speckit/03-work-session-tracking/).
