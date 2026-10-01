@@ -24,43 +24,59 @@ type SQLiteInitializer struct{}
 
 func NewSQLiteInitializer() *SQLiteInitializer { return &SQLiteInitializer{} }
 
-func (s *SQLiteInitializer) Initialize(ctx context.Context, databasePath string) (resultErr error) {
+func (s *SQLiteInitializer) Initialize(ctx context.Context, databasePath string) error {
+	db, err := OpenDatabase(ctx, databasePath)
+	if err != nil {
+		return err
+	}
+	if err := db.Close(); err != nil {
+		return fmt.Errorf("close SQLite database: %w", err)
+	}
+	return nil
+}
+
+// OpenDatabase opens the local SQLite database and ensures its schema is current.
+// The caller owns the returned connection and must close it.
+func OpenDatabase(ctx context.Context, databasePath string) (_ *sql.DB, resultErr error) {
 	if strings.TrimSpace(databasePath) == "" {
-		return errors.New("database path is empty")
+		return nil, errors.New("database path is empty")
 	}
 	if err := os.MkdirAll(filepath.Dir(databasePath), 0o700); err != nil {
-		return fmt.Errorf("create database directory: %w", err)
+		return nil, fmt.Errorf("create database directory: %w", err)
 	}
 	_, statErr := os.Stat(databasePath)
 	if statErr != nil && !errors.Is(statErr, os.ErrNotExist) {
-		return fmt.Errorf("inspect database file: %w", statErr)
+		return nil, fmt.Errorf("inspect database file: %w", statErr)
 	}
 	newDatabase := errors.Is(statErr, os.ErrNotExist)
 
 	db, err := sql.Open("sqlite", databaseDSN(databasePath))
 	if err != nil {
-		return fmt.Errorf("open SQLite database: %w", err)
+		return nil, fmt.Errorf("open SQLite database: %w", err)
 	}
 	db.SetMaxOpenConns(1)
 	db.SetMaxIdleConns(1)
 	defer func() {
-		if err := db.Close(); err != nil {
-			resultErr = errors.Join(resultErr, fmt.Errorf("close SQLite database: %w", err))
+		if resultErr != nil {
+			if err := db.Close(); err != nil {
+				resultErr = errors.Join(resultErr, fmt.Errorf("close SQLite database after open failure: %w", err))
+			}
 		}
 	}()
 
 	if err := db.PingContext(ctx); err != nil {
-		return fmt.Errorf("connect to SQLite database: %w", err)
+		return nil, fmt.Errorf("connect to SQLite database: %w", err)
 	}
 	if newDatabase {
 		if err := os.Chmod(databasePath, 0o600); err != nil {
-			return fmt.Errorf("secure database file: %w", err)
+			return nil, fmt.Errorf("secure database file: %w", err)
 		}
 	}
 	if err := migrate(ctx, db); err != nil {
-		return fmt.Errorf("migrate SQLite database: %w", err)
+		return nil, fmt.Errorf("migrate SQLite database: %w", err)
 	}
-	return nil
+	resultErr = nil
+	return db, nil
 }
 
 func databaseDSN(path string) string {
