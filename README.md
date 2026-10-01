@@ -91,6 +91,20 @@ Durasi dihitung dari waktu mulai hingga selesai dan disimpan dalam detik. Waktu 
 
 Jika dijalankan dalam repository Git, sesi menyimpan path root repository. Command tetap bekerja di luar Git atau ketika Git tidak tersedia.
 
+## Menambahkan catatan aktivitas
+
+Saat sesi aktif, simpan konteks investigasi atau pekerjaan non-coding:
+
+```sh
+wl n "Check Splunk logs"
+wl note "Found response mismatch"
+wl n "Support QA retest"
+```
+
+Setiap command menyimpan satu aktivitas `NOTE` pada tiket dan sesi aktif, lalu menampilkan `✓ Note added to <ticket>`. Teks wajib diberikan sebagai satu argumen; whitespace awal/akhir dipangkas dan deskripsi kosong ditolak. Catatan dengan teks sama boleh ditambahkan beberapa kali.
+
+Note tetap bekerja di luar Git dan mengikuti konteks repository sesi aktif. Menambahkan note tidak mengubah durasi sesi. Tanpa sesi aktif, command gagal dan menyarankan `wl s <ticket> "<title>"`. Jika sesi berubah saat penyimpanan, command gagal; ulangi untuk memakai sesi terbaru.
+
 ## Menjalankan dari source
 
 Untuk menjalankan langsung tanpa memasang executable:
@@ -131,8 +145,5 @@ Nilai yang sudah ada dipertahankan saat `wl` dijalankan kembali. `capture_full_d
 
 ## Status fitur
 
-- Tersedia: inisialisasi CLI/local storage, pengelolaan tiket di layer application/storage, serta command start/stop session.
-- Perintah note, Git capture, summary, description, dan koreksi waktu sesi belum tersedia.
-
-Rincian implementasi fitur awal ada di [docs/speckit/01-initiate-cli-and-local-storage](docs/speckit/01-initiate-cli-and-local-storage/).
-Spesifikasi sesi kerja ada di [docs/speckit/03-work-session-tracking](docs/speckit/03-work-session-tracking/).
+- Tersedia: inisialisasi CLI/local storage, pengelolaan tiket di layer application/storage, command start/stop session, serta note aktivitas.
+- Perintah Git capture, summary, description, dan koreksi waktu sesi belum tersedia.

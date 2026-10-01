@@ -47,14 +47,14 @@ func scanActive(row rowScanner) (*domain.Session, error) {
 
 // BEGIN IMMEDIATE serializes writers before reading the expected active session.
 // No connection or transaction is held while delivery prompts for confirmation.
-func (s *SQLiteSessionStore) write(ctx context.Context, operation func(*sql.Conn) error) (resultErr error) {
-	conn, err := s.db.Conn(ctx)
+func writeTransaction(ctx context.Context, db *sql.DB, operation func(*sql.Conn) error) (resultErr error) {
+	conn, err := db.Conn(ctx)
 	if err != nil {
 		return err
 	}
 	defer func() { resultErr = errors.Join(resultErr, conn.Close()) }()
 	if _, err := conn.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
-		return fmt.Errorf("begin session transaction: %w", err)
+		return fmt.Errorf("begin storage transaction: %w", err)
 	}
 	defer func() {
 		// Cleanup must still run when the command context is cancelled.
@@ -73,7 +73,7 @@ func (s *SQLiteSessionStore) write(ctx context.Context, operation func(*sql.Conn
 }
 
 func (s *SQLiteSessionStore) Start(ctx context.Context, value domain.Session, previous *domain.Session) (domain.Session, error) {
-	err := s.write(ctx, func(conn *sql.Conn) error {
+	err := writeTransaction(ctx, s.db, func(conn *sql.Conn) error {
 		active, err := scanActive(conn.QueryRowContext(ctx, activeSessionQuery))
 		if err != nil {
 			return err
@@ -124,5 +124,5 @@ func completeSession(ctx context.Context, conn *sql.Conn, value domain.Session) 
 }
 
 func (s *SQLiteSessionStore) Complete(ctx context.Context, value domain.Session) error {
-	return s.write(ctx, func(conn *sql.Conn) error { return completeSession(ctx, conn, value) })
+	return writeTransaction(ctx, s.db, func(conn *sql.Conn) error { return completeSession(ctx, conn, value) })
 }

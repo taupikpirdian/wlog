@@ -6,6 +6,7 @@ import (
 	"os"
 	"time"
 
+	applicationactivity "github.com/taupikpirdian/wlog/application/activity"
 	"github.com/taupikpirdian/wlog/application/bootstrap"
 	applicationsession "github.com/taupikpirdian/wlog/application/session"
 	"github.com/taupikpirdian/wlog/delivery/cli"
@@ -22,11 +23,23 @@ func main() {
 		configfile.NewLoader(),
 		storage.NewSQLiteInitializer(),
 	)
-	root := cli.NewRootCommand(initializer, version, openSessions)
+	root := cli.NewRootCommand(initializer, version, openSessions, openNotes)
 	if err := root.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+}
+
+func openNotes(ctx context.Context) (cli.NoteService, func() error, error) {
+	config, err := configfile.NewLoader().LoadOrCreate(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	db, err := storage.OpenDatabase(ctx, config.DatabasePath)
+	if err != nil {
+		return nil, nil, err
+	}
+	return applicationactivity.NewService(storage.NewSQLiteActivityStore(db), time.Now), db.Close, nil
 }
 
 func openSessions(ctx context.Context) (cli.SessionService, func() error, error) {

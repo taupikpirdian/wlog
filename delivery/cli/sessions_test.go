@@ -74,7 +74,7 @@ func TestCommandsAndLazyStorage(t *testing.T) {
 			root := NewRootCommand(nil, "test", func(context.Context) (SessionService, func() error, error) {
 				opens++
 				return service, func() error { closes++; return nil }, nil
-			})
+			}, nil)
 			root.SetOut(&bytes.Buffer{})
 			root.SetErr(&bytes.Buffer{})
 			root.SetArgs(tc.args)
@@ -90,7 +90,7 @@ func TestNonInteractiveSwitchDoesNotWrite(t *testing.T) {
 	service := &fakeSessions{active: &domain.Session{ID: 1, StartedAt: time.Now(), Status: domain.Active}}
 	root := NewRootCommand(nil, "test", func(context.Context) (SessionService, func() error, error) {
 		return service, func() error { return nil }, nil
-	})
+	}, nil)
 	root.SetArgs([]string{"s", "OOT-2", "Task"})
 	root.SetIn(strings.NewReader("yes\n"))
 	root.SetOut(&bytes.Buffer{})
