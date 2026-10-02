@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="622" viewBox="0 0 1000 622" role="img" aria-labelledby="title description">
+<title id="title">Developer Worklog — Active session and daily totals</title>
+<desc id="description">Example terminal output generated from the CLI with demo data. $ wl. DEV WORKLOG. Active Session. OOT-3668 — Support QA. Started : 13:00. Duration: 1h 30m. Today. ─────────────────────────────. OOT-3668     1h 30m. OOT-3747     0m. OOT-3751     2h 30m. Total        4h. Unsessioned. 12:15  COMMIT  OOT-3747  review response validation [def5678]</desc>
+<rect width="1000" height="622" rx="16" fill="#0d1117"/>
+<path d="M16 0h968a16 16 0 0 1 16 16v46H0V16A16 16 0 0 1 16 0" fill="#161b22"/>
+<circle cx="28" cy="30" r="6" fill="#ff7b72"/><circle cx="50" cy="30" r="6" fill="#e3b341"/><circle cx="72" cy="30" r="6" fill="#3fb950"/>
+<text x="106" y="36" fill="#8b949e" font-family="system-ui, sans-serif" font-size="15">Developer Worklog · Active session and daily totals</text>
+<text x="958" y="36" fill="#8b949e" text-anchor="end" font-family="system-ui, sans-serif" font-size="13">DEMO DATA</text>
+<g font-family="Consolas, 'Liberation Mono', Menlo, monospace" font-size="16" xml:space="preserve" style="white-space: pre;">
+<text x="36" y="112" fill="#7ee787" font-weight="600">$&#160;wl</text>
+<text x="36" y="138" fill="#c9d1d9" font-weight="400"></text>
+<text x="36" y="164" fill="#f0f6fc" font-weight="600">DEV&#160;WORKLOG</text>
+<text x="36" y="190" fill="#c9d1d9" font-weight="400"></text>
+<text x="36" y="216" fill="#f0f6fc" font-weight="600">Active&#160;Session</text>
+<text x="36" y="242" fill="#c9d1d9" font-weight="400">OOT-3668&#160;—&#160;Support&#160;QA</text>
+<text x="36" y="268" fill="#c9d1d9" font-weight="400"></text>
+<text x="36" y="294" fill="#c9d1d9" font-weight="400">Started&#160;:&#160;13:00</text>
+<text x="36" y="320" fill="#79c0ff" font-weight="600">Duration:&#160;1h&#160;30m</text>
+<text x="36" y="346" fill="#c9d1d9" font-weight="400"></text>
+<text x="36" y="372" fill="#f0f6fc" font-weight="600">Today</text>
+<text x="36" y="398" fill="#c9d1d9" font-weight="400">─────────────────────────────</text>
+<text x="36" y="424" fill="#c9d1d9" font-weight="400">OOT-3668&#160;&#160;&#160;&#160;&#160;1h&#160;30m</text>
+<text x="36" y="450" fill="#c9d1d9" font-weight="400">OOT-3747&#160;&#160;&#160;&#160;&#160;0m</text>
+<text x="36" y="476" fill="#c9d1d9" font-weight="400">OOT-3751&#160;&#160;&#160;&#160;&#160;2h&#160;30m</text>
+<text x="36" y="502" fill="#79c0ff" font-weight="600">Total&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;4h</text>
+<text x="36" y="528" fill="#c9d1d9" font-weight="400"></text>
+<text x="36" y="554" fill="#f0f6fc" font-weight="600">Unsessioned</text>
+<text x="36" y="580" fill="#c9d1d9" font-weight="400">12:15&#160;&#160;COMMIT&#160;&#160;OOT-3747&#160;&#160;review&#160;response&#160;validation&#160;[def5678]</text>
+</g>
+</svg>

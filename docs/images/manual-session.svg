@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="596" viewBox="0 0 1000 596" role="img" aria-labelledby="title description">
+<title id="title">Developer Worklog — Manual time entry and backdated start</title>
+<desc id="description">Example terminal output generated from the CLI with demo data. $ wl session OOT-3751 --from 09:00 --to 11:00 --title &quot;Fix tax calculation&quot;. ✓ Manual session added. OOT-3751. Fix tax calculation. 09:00 → 11:00. Duration: 2h. $ wl s OOT-3668 &quot;Support QA&quot; --since 13:00. ✓ Session started. OOT-3668. Support QA. Started: 13:00</desc>
+<rect width="1000" height="596" rx="16" fill="#0d1117"/>
+<path d="M16 0h968a16 16 0 0 1 16 16v46H0V16A16 16 0 0 1 16 0" fill="#161b22"/>
+<circle cx="28" cy="30" r="6" fill="#ff7b72"/><circle cx="50" cy="30" r="6" fill="#e3b341"/><circle cx="72" cy="30" r="6" fill="#3fb950"/>
+<text x="106" y="36" fill="#8b949e" font-family="system-ui, sans-serif" font-size="15">Developer Worklog · Manual time entry and backdated start</text>
+<text x="958" y="36" fill="#8b949e" text-anchor="end" font-family="system-ui, sans-serif" font-size="13">DEMO DATA</text>
+<g font-family="Consolas, 'Liberation Mono', Menlo, monospace" font-size="16" xml:space="preserve" style="white-space: pre;">
+<text x="36" y="112" fill="#7ee787" font-weight="600">$&#160;wl&#160;session&#160;OOT-3751&#160;--from&#160;09:00&#160;--to&#160;11:00&#160;--title&#160;&quot;Fix&#160;tax&#160;calculation&quot;</text>
+<text x="36" y="138" fill="#c9d1d9" font-weight="400"></text>
+<text x="36" y="164" fill="#f0f6fc" font-weight="600">✓&#160;Manual&#160;session&#160;added</text>
+<text x="36" y="190" fill="#c9d1d9" font-weight="400"></text>
+<text x="36" y="216" fill="#c9d1d9" font-weight="400">OOT-3751</text>
+<text x="36" y="242" fill="#c9d1d9" font-weight="400">Fix&#160;tax&#160;calculation</text>
+<text x="36" y="268" fill="#c9d1d9" font-weight="400"></text>
+<text x="36" y="294" fill="#c9d1d9" font-weight="400">09:00&#160;→&#160;11:00</text>
+<text x="36" y="320" fill="#79c0ff" font-weight="600">Duration:&#160;2h</text>
+<text x="36" y="346" fill="#c9d1d9" font-weight="400"></text>
+<text x="36" y="372" fill="#7ee787" font-weight="600">$&#160;wl&#160;s&#160;OOT-3668&#160;&quot;Support&#160;QA&quot;&#160;--since&#160;13:00</text>
+<text x="36" y="398" fill="#c9d1d9" font-weight="400"></text>
+<text x="36" y="424" fill="#f0f6fc" font-weight="600">✓&#160;Session&#160;started</text>
+<text x="36" y="450" fill="#c9d1d9" font-weight="400"></text>
+<text x="36" y="476" fill="#c9d1d9" font-weight="400">OOT-3668</text>
+<text x="36" y="502" fill="#c9d1d9" font-weight="400">Support&#160;QA</text>
+<text x="36" y="528" fill="#c9d1d9" font-weight="400"></text>
+<text x="36" y="554" fill="#c9d1d9" font-weight="400">Started:&#160;13:00</text>
+</g>
+</svg>

@@ -14,6 +14,22 @@
 - **Local storage** — Automatically initialize SQLite storage and configuration; reuse tickets across sessions and repositories.
 - **Windows build support** — Build the core CLI as `wl.exe` for Windows x64; runtime verification on Windows is pending.
 
+### Feature Previews
+
+These examples use demo data and show output from the CLI.
+
+**Dashboard — active session and daily totals**
+
+![Dashboard showing the active session, tracked time per ticket, and an unsessioned commit](docs/images/dashboard.svg)
+
+**Daily timeline — sessions, notes, and commits in chronological order**
+
+![Daily timeline showing START, NOTE, COMMIT, and STOP events with a total tracked time of four hours](docs/images/timeline.svg)
+
+**Manual time entry — completed sessions and backdated starts**
+
+![Manual session creation from 09:00 to 11:00 followed by a backdated start at 13:00](docs/images/manual-session.svg)
+
 ## Prerequisites
 
 - Go 1.22 or later
