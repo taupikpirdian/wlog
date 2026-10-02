@@ -22,6 +22,18 @@ type GitConfig struct {
 }
 
 type AIConfig struct {
-	Enabled     bool `mapstructure:"enabled"`
-	IncludeDiff bool `mapstructure:"include_diff"`
+	Enabled     bool                        `mapstructure:"enabled"`
+	IncludeDiff bool                        `mapstructure:"include_diff"`
+	Provider    string                      `mapstructure:"provider" yaml:"provider"`
+	Providers   map[string]AIProviderConfig `mapstructure:"providers" yaml:"providers"`
+}
+
+type AIProviderConfig struct {
+	Command  string           `mapstructure:"command" yaml:"command"`
+	Args     []string         `mapstructure:"args" yaml:"args,omitempty"`
+	Progress AIProgressConfig `mapstructure:"progress" yaml:"progress,omitempty"`
+}
+
+type AIProgressConfig struct {
+	Mode string `mapstructure:"mode" yaml:"mode,omitempty"`
 }

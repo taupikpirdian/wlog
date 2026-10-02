@@ -7,6 +7,7 @@
 - **Dashboard** — View the active session, elapsed time, and today's tracked time per ticket with `wl`.
 - **Repository status** — Show the dashboard and check automatic commit capture for the current repository with `wl status`.
 - **Daily timeline** — Review `START`, `NOTE`, `COMMIT`, and `STOP` events in chronological order with `wl today`.
+- **Daily summary** — Select a date from the current week with `wl summary` and copy the combined work details, tracked time, and Git developer email.
 - **Work sessions** — Start and stop ticket-based sessions with `wl start` / `wl s` and `wl stop` / `wl x`.
 - **Manual time entry** — Add completed sessions with `wl session --from --to --title`, or backdate an active session with `wl s --since`; overlapping ranges are rejected.
 - **Activity notes** — Record investigation details and other work on the active session with `wl note` / `wl n`.
@@ -186,6 +187,115 @@ wl version
 ```
 
 Help and version commands do not create or open the database.
+
+## Creating a Daily Summary
+
+```bash
+wl summary
+```
+
+The command lists Monday through Sunday of the current week in your local timezone, including dates with no worklog. Enter a date's number and press Enter to select it, or enter `q` to cancel. Each date shows its tracked duration; dates with notes or commits but no tracked sessions show `0m`.
+
+After selecting a date, select a ticket with worklog on that date, then answer `Generate summary with AI? [y/N]`. Selecting No uses the existing plain-text summary for **that date and ticket**, ready to copy:
+
+```text
+Time:
+2h
+
+Detail:
+- Fix tax calculation
+- Check tax calculation
+
+Hasil:
+-
+
+Dev By:
+developer@example.com
+```
+
+Time is the sum of the selected ticket's session durations within that date. Sessions crossing midnight are split between dates, and active sessions count up to the command's read time. Detail combines session titles, notes, and commit messages in chronological order, splitting multiline text into bullets and removing identical details after whitespace normalization. Notes and commits do not add tracked time. An empty date produces `0m` and `-` for Detail. Dates containing only unassigned evidence retain the date-wide non-AI summary because no ticket can be selected.
+
+Dev By comes from `git config user.email` in the current directory, falling back to `git config --global user.email` when empty or unset. If neither provides an email, it shows `-`. The selection menu is written to stderr; stdout contains only the summary, so you can also save it with `wl summary > summary.txt`.
+
+After a successful summary, a GitHub star invitation appears once at the end on stderr, separated by a blank line. It applies to AI and non-AI summaries and stays outside the copyable Jira output. Failed or canceled commands do not show it.
+
+### Optional AI summary
+
+```bash
+wl config ai
+wl summary
+```
+
+`wl config ai` selects Codex, Claude, OpenCode, or Custom, and saves its executable in the existing `~/.worklog/config.yaml`. Install and authenticate the selected CLI before generating. If you choose AI without configuring a provider, `wl summary` offers this same wizard and resumes after saving. Declining configuration falls back to the selected ticket's non-AI summary.
+
+Before AI generation, choose the output language: **Bahasa Indonesia** (1, default) or **English** (2). This choice applies to both the worklog summary and ticket description, across all repositories and providers. Prompts and the `ticket-generator` methodology use the selected language while preserving Jira headings, JSON field names, code identifiers, duration, and developer email. Non-AI summaries retain the original recorded worklog descriptions without translation.
+
+Example configuration (only `provider` is active):
+
+```yaml
+ai:
+  enabled: true
+  provider: codex
+  providers:
+    codex:
+      command: codex
+    claude:
+      command: claude
+    opencode:
+      command: opencode
+    custom:
+      command: my-ai-agent
+      args: ["--prompt", "{{prompt}}"]
+      progress:
+        mode: stderr
+```
+
+Custom agents receive the strict prompt on stdin unless an argument includes `{{prompt}}`. Arguments are passed directly to the executable, without shell interpretation. Custom agents must return only valid JSON matching the summary contract: `worklog.details`, `worklog.results`, and `ticket_description` with `background`, `problem_requirement`, `scope`, `expected_result`, and optional `technical_notes`. Details, scope, background, problem, and expected result must be nonempty; results may be `[]` when no outcome is supported. Factual fields such as duration, email, ticket, and date are excluded from the AI response. Invalid output produces an explicit error rather than a malformed summary.
+
+The AI output contains the Jira Worklog block followed by the Markdown Jira Ticket Description. Worklog scope is the selected date and ticket; ticket description uses all recorded evidence for that ticket. The application formats both outputs and supplies Time and Dev By itself.
+
+Source evidence uses captured `work_activities.commit_hash`, `repository`, and `branch` from the database. The current schema does not record session start/end commit hashes. Each captured commit is analyzed as its **first parent → captured commit** diff (root commits use a root diff), with duplicate resolved hashes removed per repository. This avoids assuming that unrelated commits between two captures belong to the ticket. Capture the commits you want included through `wl git` or the installed hooks; unrecorded commits and uncommitted changes are not included.
+
+Git and agent processes run against the recorded absolute repository path, so running `wl summary` from another directory still works. Multiple repositories are analyzed separately, then their outputs are combined and duplicate bullets removed. The prompt prioritizes actual diffs, related implementation, and tests over notes and messages; it prohibits unsupported claims about tests, deployment, or issue resolution. Files should be inspected at the recorded revision, rather than the current HEAD. This is summary generation, with no code-review output.
+
+Missing repositories, missing commit objects, and diffs exceeding 256 KiB are reported as incomplete evidence; other available repositories still contribute. If no source context can be read, you must explicitly accept worklogs-only AI generation, or fall back to the non-AI summary. Worklogs-only and partial contexts instruct the AI to use conservative wording and avoid claiming code verification. Prompts are bounded at 2 MiB, responses at 4 MiB, and each agent invocation has a ten-minute timeout.
+
+Provider adapters use noninteractive CLI modes documented by [Codex](https://developers.openai.com/codex/noninteractive), [Claude Code](https://code.claude.com/docs/en/cli-reference), and [OpenCode](https://opencode.ai/docs/cli/). Codex uses a read-only sandbox, Claude uses plan permissions, and OpenCode uses its v1 plan-agent permissions. Provider-specific `args` can add options such as model selection. Custom agent behavior is controlled by the configured executable.
+
+### Real-time AI progress
+
+Progress appears on stderr while stdout remains the final Jira summary. `→` lines report actual wlog actions such as loading recorded worklogs, validating repository paths, loading captured commits, starting each repository analysis, and combining results. `[Codex]`, `[Claude]`, `[OpenCode]`, and `[Custom]` lines report observable provider events such as tool invocation, file inspection, and session status. There is no simulated thinking progress. Reasoning blocks, arbitrary tool output, and final response text are excluded from the progress renderer.
+
+Codex streams JSONL with `--json` and keeps the structured result in its separate final-message file. Claude streams `--output-format stream-json --verbose` and extracts the structured result from its result event. OpenCode streams `--format json` events; text events are collected for the final response, while tool and step events become progress. Unknown or malformed progress events are ignored rather than printed as raw transcripts.
+
+Custom providers support `progress.mode: none` (default), `stderr`, or `jsonl`. In `stderr` mode, stdout must contain only the final JSON, and stderr must contain observable progress lines, not reasoning or response text. In `jsonl` mode, stdout emits observable events and a final result event:
+
+```jsonl
+{"type":"status","message":"Repository inspected"}
+{"type":"tool","name":"git","command":"git diff aaa..bbb"}
+{"type":"file","path":"internal/service/auth.go"}
+{"type":"result","data":{"worklog":{"details":["Observed change"],"results":[]},"ticket_description":{"background":"Recorded context","problem_requirement":"Observed requirement","scope":["Observed change"],"expected_result":"Expected behavior","technical_notes":""}}}
+```
+
+Supported custom event types are `info`, `status`, `warning`, `tool`, `file`, and `result`. With `none`, provider output produces no AI progress events. Provider streams are drained concurrently, with a 1 MiB per-event limit and a 64 KiB stderr diagnostic tail. Known credential values and common token/password/authorization patterns are masked before rendering. Ctrl+C cancels the AI process and closes its streaming readers; on macOS/Linux, its process group is terminated as well. Failures retain a bounded, sanitized diagnostic message.
+
+## Generating a Jira Ticket
+
+```bash
+wl generate-ticket
+# Same command, short alias:
+wl gt
+```
+
+Select a ticket directly from tickets with recorded worklogs in the current local Monday–Sunday week; there is no date selection. Each ticket appears once with its total tracked time for that week. The command reuses the existing AI configuration and repository/commit evidence pipeline, and writes only the Jira Ticket Description to stdout using the existing Background, Problem / Requirement, Scope, Expected Result, and optional Technical Notes headings. The description uses all recorded evidence for that ticket, including earlier weeks. Missing AI configuration can be completed in the same run. Worklogs-only generation still requires explicit consent when source code is unavailable. If this week has no ticket worklogs, the command reports this before asking for input or starting AI. `wl summary` retains its date selection.
+
+`wl generate-ticket` and `wl gt` offer the same **Bahasa Indonesia** or **English** output-language selection as AI summaries, before any AI process starts. Press Enter to use Bahasa Indonesia.
+
+Before each repository's AI analysis, wlog checks for an installed `ticket-generator/SKILL.md` in the provider's repository and user skill locations. If found, it reads the complete file (up to 256 KiB), displays the actual check/read progress, and activates the methodology. Missing, empty, oversized, or unreadable instructions fall back to the built-in evidence-based prompt without failing ticket generation.
+
+For native providers, wlog verifies the file and reports that the skill will be requested; it does **not** claim that the agent already loaded it. Codex receives `$ticket-generator`, Claude is permitted to invoke `Skill`, and OpenCode is permitted to invoke `skill` for `ticket-generator`. The prompt requires the agent to read the skill before code analysis, preserve wlog's final format, and fall back if native loading fails. Native tool/skill-loading events are streamed only when reported by the provider. Custom agents receive the complete instructions actually read by wlog, since their native skill capabilities are unknown.
+
+Skill discovery follows the documented locations for [Codex](https://developers.openai.com/codex/skills), [Claude Code](https://code.claude.com/docs/en/skills), and [OpenCode](https://opencode.ai/docs/skills/), with `~/.codex/skills` also checked for existing Codex installations. Progress stays on stderr, and `wl generate-ticket --help` lists `generate-ticket, gt` as names for the same command.
 
 ## Tracking Work Sessions
 

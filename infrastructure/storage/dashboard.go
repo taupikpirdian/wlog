@@ -88,7 +88,7 @@ func readDailySessions(ctx context.Context, q snapshotQuerier) (_ []session.Sess
 
 func readDailyActivities(ctx context.Context, q snapshotQuerier) (_ []domain.Activity, resultErr error) {
 	rows, err := q.QueryContext(ctx, `SELECT a.id,t.ticket_key,a.session_id,a.type,
- CASE WHEN a.type='NOTE' THEN a.description ELSE a.commit_message END,a.commit_hash,a.created_at,COALESCE(a.repository,s.repository)
+ CASE WHEN a.type='NOTE' THEN a.description ELSE a.commit_message END,a.commit_hash,a.created_at,COALESCE(a.repository,s.repository),a.branch
  FROM work_activities a LEFT JOIN tickets t ON t.id=a.ticket_id
  LEFT JOIN work_sessions s ON s.id=a.session_id`)
 	if err != nil {
@@ -102,14 +102,15 @@ func readDailyActivities(ctx context.Context, q snapshotQuerier) (_ []domain.Act
 	var values []domain.Activity
 	for rows.Next() {
 		var value domain.Activity
-		var key, text, hash, repository sql.NullString
+		var key, text, hash, repository, branch sql.NullString
 		var sid sql.NullInt64
 		var at string
-		if err := rows.Scan(&value.ID, &key, &sid, &value.Type, &text, &hash, &at, &repository); err != nil {
+		if err := rows.Scan(&value.ID, &key, &sid, &value.Type, &text, &hash, &at, &repository, &branch); err != nil {
 			return nil, err
 		}
 		value.TicketKey, value.Text, value.Hash = key.String, text.String, hash.String
 		value.Repository = repository.String
+		value.Branch = branch.String
 		if sid.Valid {
 			id := sid.Int64
 			value.SessionID = &id

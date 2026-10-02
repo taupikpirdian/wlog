@@ -21,7 +21,7 @@ const (
 	defaultTicketRule = `[A-Z][A-Z0-9]+-[0-9]+`
 )
 
-type Loader struct{}
+type Loader struct{ homeDirectory func() (string, error) }
 
 func NewLoader() *Loader { return &Loader{} }
 
@@ -30,7 +30,11 @@ func (l *Loader) LoadOrCreate(ctx context.Context) (bootstrap.Config, error) {
 		return bootstrap.Config{}, err
 	}
 
-	home, err := os.UserHomeDir()
+	resolveHome := l.homeDirectory
+	if resolveHome == nil {
+		resolveHome = os.UserHomeDir
+	}
+	home, err := resolveHome()
 	if err != nil {
 		return bootstrap.Config{}, fmt.Errorf("resolve home directory: %w", err)
 	}

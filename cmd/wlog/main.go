@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"time"
 
@@ -12,11 +13,15 @@ import (
 	applicationdashboard "github.com/taupikpirdian/wlog/application/dashboard"
 	applicationhook "github.com/taupikpirdian/wlog/application/hook"
 	applicationsession "github.com/taupikpirdian/wlog/application/session"
+	applicationsummary "github.com/taupikpirdian/wlog/application/summary"
 	"github.com/taupikpirdian/wlog/delivery/cli"
 	"github.com/taupikpirdian/wlog/domain/ticket"
+	"github.com/taupikpirdian/wlog/infrastructure/aiagent"
+	"github.com/taupikpirdian/wlog/infrastructure/aiskills"
 	"github.com/taupikpirdian/wlog/infrastructure/configfile"
 	"github.com/taupikpirdian/wlog/infrastructure/gitcapture"
 	"github.com/taupikpirdian/wlog/infrastructure/gitcontext"
+	"github.com/taupikpirdian/wlog/infrastructure/gitevidence"
 	"github.com/taupikpirdian/wlog/infrastructure/githook"
 	"github.com/taupikpirdian/wlog/infrastructure/storage"
 )
@@ -28,10 +33,34 @@ func main() {
 	root := cli.NewRootCommand(dashboard, version, openSessions, openNotes, openGitCaptures)
 	root.AddCommand(cli.NewStatusCommand(dashboard, openHookStatus))
 	root.AddCommand(cli.NewInstallHooksCommand(openHooks))
+	aiOptions := cli.SummaryAIOptions{Config: configfile.NewLoader(), Git: gitevidence.NewService(), Agents: aiagent.NewFactory(), Skills: aiskills.NewResolver()}
+	root.AddCommand(cli.NewSummaryCommand(summaryFactory(configfile.NewLoader(), time.Now, time.Local), aiOptions))
+	root.AddCommand(cli.NewConfigCommand(aiOptions.Config))
+	root.AddCommand(cli.NewGenerateTicketCommand(summaryFactory(configfile.NewLoader(), time.Now, time.Local), aiOptions))
 	cli.AddManualSessionCommands(root, manualSessionFactory(configfile.NewLoader(), time.Now, time.Local, gitcontext.Current))
-	if err := root.Execute(); err != nil {
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer cancel()
+	if err := root.ExecuteContext(ctx); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
+	}
+}
+
+func summaryFactory(loader bootstrap.ConfigLoader, now func() time.Time, location *time.Location) cli.SummaryFactory {
+	return func(ctx context.Context) (cli.SummaryReader, func() error, error) {
+		config, err := loader.LoadOrCreate(ctx)
+		if err != nil {
+			return nil, nil, err
+		}
+		directory, err := os.Getwd()
+		if err != nil {
+			return nil, nil, err
+		}
+		db, err := storage.OpenDatabase(ctx, config.DatabasePath)
+		if err != nil {
+			return nil, nil, err
+		}
+		return applicationsummary.NewService(storage.NewSQLiteDashboardStore(db), gitcontext.NewEmailReader(directory), now, location), db.Close, nil
 	}
 }
 

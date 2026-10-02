@@ -27,6 +27,7 @@ type Activity struct {
 	Hash       string
 	At         time.Time
 	Repository string
+	Branch     string
 }
 
 type Event struct {
