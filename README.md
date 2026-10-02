@@ -106,6 +106,28 @@ Durasi dihitung dari waktu mulai hingga selesai dan disimpan dalam detik. Waktu 
 
 Jika dijalankan dalam repository Git, sesi menyimpan path root repository. Command tetap bekerja di luar Git atau ketika Git tidak tersedia.
 
+## Mencatat waktu yang terlewat
+
+Tambahkan sesi yang sudah selesai dengan rentang waktu pilihan sendiri:
+
+```sh
+wl session OOT-3751 --from 09:00 --to 11:00 --title "Fix tax calculation"
+```
+
+Atau mulai sesi aktif dari waktu sebelumnya:
+
+```sh
+wl s OOT-3751 "Fix tax" --since 09:00
+# Shorthand flag
+wl s OOT-3751 "Fix tax" -s 09:00
+```
+
+Waktu harus tepat `HH:mm` pada tanggal lokal hari ini. Waktu future, rentang selesai yang kosong/terbalik, serta waktu lokal ambigu/tidak ada akibat perubahan offset ditolak. Tidak ada rollover otomatis ke kemarin atau lintas tengah malam; durasi dihitung dari elapsed aktual tanpa estimasi AI.
+
+Kedua flow menolak overlap dengan sesi pada tiket/repository mana pun. Rentang yang hanya bersentuhan pada batasnya diperbolehkan. `--since` memerlukan tidak ada sesi aktif dan tidak menawarkan switch; start tanpa flag tersebut tetap mengikuti konfirmasi existing. Sesi manual selesai boleh ditambahkan sebelum waktu mulai sesi aktif tanpa mengubah sesi aktif itu.
+
+Sesi baru langsung terlihat pada dashboard dan timeline. Note/commit lama tidak dipindahkan ke sesi baru, walau waktu dan tiketnya cocok. Penyimpanan tiket/sesi dilakukan atomik; command sukses membuat satu sesi. Jika output gagal setelah penyimpanan, tinjau `wl`/`wl today` sebelum retry karena sesi dapat sudah tersimpan dan retry akan ditolak sebagai konflik.
+
 ## Menambahkan catatan aktivitas
 
 Saat sesi aktif, simpan konteks investigasi atau pekerjaan non-coding:
@@ -219,5 +241,5 @@ go vet ./...
 
 ## Status fitur
 
-- Tersedia: inisialisasi CLI/local storage, pengelolaan tiket di layer application/storage, start/stop session, note aktivitas, Git commit capture, pemasangan Git hook, dashboard, dan timeline hari ini.
-- Summary, description, dan koreksi waktu sesi belum tersedia.
+- Tersedia: inisialisasi CLI/local storage, pengelolaan tiket di layer application/storage, start/stop session, note aktivitas, Git commit capture, pemasangan Git hook, dashboard, timeline hari ini, manual completed session, dan backdated start.
+- Summary, description, edit/hapus sesi, dan rentang manual untuk tanggal historis belum tersedia.

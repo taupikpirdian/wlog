@@ -25,9 +25,28 @@ var version = "dev"
 func main() {
 	root := cli.NewRootCommand(dashboardFactory(configfile.NewLoader(), time.Now, time.Local), version, openSessions, openNotes, openGitCaptures)
 	root.AddCommand(cli.NewInstallHooksCommand(openHooks))
+	cli.AddManualSessionCommands(root, manualSessionFactory(configfile.NewLoader(), time.Now, time.Local, gitcontext.Current))
 	if err := root.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
+	}
+}
+
+func manualSessionFactory(loader bootstrap.ConfigLoader, now func() time.Time, location *time.Location, repository func(context.Context) string) cli.ManualSessionFactory {
+	return func(ctx context.Context) (cli.ManualSessionService, func() error, error) {
+		config, err := loader.LoadOrCreate(ctx)
+		if err != nil {
+			return nil, nil, err
+		}
+		pattern, err := ticket.NewKeyPattern(config.Ticket.Pattern)
+		if err != nil {
+			return nil, nil, err
+		}
+		db, err := storage.OpenDatabase(ctx, config.DatabasePath)
+		if err != nil {
+			return nil, nil, err
+		}
+		return applicationsession.NewManualService(storage.NewSQLiteSessionStore(db), pattern, now, location, repository), db.Close, nil
 	}
 }
 
