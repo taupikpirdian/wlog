@@ -1,40 +1,21 @@
 package cli
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/spf13/cobra"
-
-	"github.com/taupikpirdian/wlog/application/bootstrap"
 )
 
-// Initializer is the application behavior required by the root CLI command.
-type Initializer interface {
-	Initialize(context.Context) (bootstrap.Result, error)
-}
-
-func NewRootCommand(initializer Initializer, version string, sessions SessionFactory, notes NoteFactory, captures ...GitFactory) *cobra.Command {
+func NewRootCommand(dashboard DashboardFactory, version string, sessions SessionFactory, notes NoteFactory, captures ...GitFactory) *cobra.Command {
 	root := &cobra.Command{
 		Use:           "wl",
 		Short:         "Capture developer work activity and prepare Jira worklogs",
-		Long:          "Developer Worklog CLI prepares local worklog storage and provides commands for capturing work activity.",
+		Long:          "Developer Worklog CLI displays today's tracked work and captures local work activity.",
 		Version:       version,
 		SilenceErrors: true,
 		SilenceUsage:  true,
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			result, err := initializer.Initialize(cmd.Context())
-			if err != nil {
-				return err
-			}
-
-			_, err = fmt.Fprintf(cmd.OutOrStdout(), "wl ready\nData directory: %s\nConfig: %s\nDatabase: %s\n",
-				result.DataDirectory,
-				result.ConfigFile,
-				result.DatabasePath,
-			)
-			return err
-		},
+		Args:          cobra.NoArgs,
+		RunE:          runDaily(dashboard, false),
 	}
 	root.SetHelpCommand(&cobra.Command{
 		Use:   "help [command]",
@@ -61,6 +42,7 @@ func NewRootCommand(initializer Initializer, version string, sessions SessionFac
 	})
 	addSessionCommands(root, sessions)
 	addNoteCommand(root, notes)
+	addTodayCommand(root, dashboard)
 	var capture GitFactory
 	if len(captures) > 0 {
 		capture = captures[0]

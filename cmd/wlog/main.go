@@ -8,6 +8,7 @@ import (
 
 	applicationactivity "github.com/taupikpirdian/wlog/application/activity"
 	"github.com/taupikpirdian/wlog/application/bootstrap"
+	applicationdashboard "github.com/taupikpirdian/wlog/application/dashboard"
 	applicationhook "github.com/taupikpirdian/wlog/application/hook"
 	applicationsession "github.com/taupikpirdian/wlog/application/session"
 	"github.com/taupikpirdian/wlog/delivery/cli"
@@ -22,15 +23,25 @@ import (
 var version = "dev"
 
 func main() {
-	initializer := bootstrap.NewService(
-		configfile.NewLoader(),
-		storage.NewSQLiteInitializer(),
-	)
-	root := cli.NewRootCommand(initializer, version, openSessions, openNotes, openGitCaptures)
+	root := cli.NewRootCommand(dashboardFactory(configfile.NewLoader(), time.Now, time.Local), version, openSessions, openNotes, openGitCaptures)
 	root.AddCommand(cli.NewInstallHooksCommand(openHooks))
 	if err := root.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
+	}
+}
+
+func dashboardFactory(loader bootstrap.ConfigLoader, now func() time.Time, location *time.Location) cli.DashboardFactory {
+	return func(ctx context.Context) (cli.DashboardReader, func() error, error) {
+		config, err := loader.LoadOrCreate(ctx)
+		if err != nil {
+			return nil, nil, err
+		}
+		db, err := storage.OpenDatabase(ctx, config.DatabasePath)
+		if err != nil {
+			return nil, nil, err
+		}
+		return applicationdashboard.NewService(storage.NewSQLiteDashboardStore(db), now, location), db.Close, nil
 	}
 }
 

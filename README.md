@@ -39,7 +39,7 @@ Versi hasil build lokal menampilkan `dev`. Build rilis dapat menyisipkan nomor v
 
 ## Menjalankan
 
-Jalankan tanpa argumen untuk menyiapkan penyimpanan lokal:
+Jalankan tanpa argumen untuk melihat dashboard session aktif dan total waktu hari ini:
 
 ```sh
 wl
@@ -54,6 +54,20 @@ Pada pemakaian pertama, `wl` membuat:
 ```
 
 Startup berikutnya menggunakan konfigurasi dan database yang sama serta menerapkan migrasi yang belum tersedia. Direktori dan file baru dibuat dengan akses terbatas pada user saat ini.
+
+Dashboard menampilkan tiket, judul, waktu mulai, dan durasi session aktif, lalu ringkasan waktu hari ini per tiket. Tanpa pekerjaan, tampilkan `No active session` dan total `0m`. Session lintas tengah malam hanya menyumbang bagian waktunya yang masuk hari ini; durasi session aktif tetap seluruh waktu sejak mulai.
+
+Tinjau kejadian hari ini:
+
+```sh
+wl today
+```
+
+Timeline menampilkan `START`, `NOTE`, `COMMIT`, dan `STOP` dalam urutan waktu, dengan tiket pada setiap baris. Tanggal dan waktu mengikuti zona lokal perangkat, dan semua repository dalam database pengguna ikut ditampilkan. Session aktif tidak memiliki `STOP` buatan.
+
+Note dan commit adalah evidence dan tidak menambah durasi tracked. Commit bertiket tanpa session muncul pada kategori `Unsessioned` di dashboard; commit tanpa tiket muncul pada `Unassigned`. Timeline tetap menyertakan keduanya. Durasi harian dijumlahkan dalam detik sebelum ditampilkan dalam menit, sehingga total bisa berbeda dari penjumlahan menit yang terlihat pada baris tiket.
+
+Kedua command membaca satu snapshot yang konsisten tanpa mengubah data pekerjaan, memanggil Git, atau mengakses jaringan. Teks note/pesan commit multiline ditampilkan sebagai satu baris aman; isi tersimpan tetap utuh. Error pembacaan menghasilkan exit non-zero, bukan tampilan data kosong.
 
 Lihat bantuan dan versi kapan saja:
 
@@ -205,5 +219,5 @@ go vet ./...
 
 ## Status fitur
 
-- Tersedia: inisialisasi CLI/local storage, pengelolaan tiket di layer application/storage, start/stop session, note aktivitas, Git commit capture, dan pemasangan Git hook.
+- Tersedia: inisialisasi CLI/local storage, pengelolaan tiket di layer application/storage, start/stop session, note aktivitas, Git commit capture, pemasangan Git hook, dashboard, dan timeline hari ini.
 - Summary, description, dan koreksi waktu sesi belum tersedia.
