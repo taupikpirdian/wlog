@@ -5,11 +5,13 @@
 ## Prerequisites
 
 - Go 1.22 or later
-- macOS or Linux
+- macOS, Linux, or Windows x64 (native core CLI; automatic hook installation requires macOS/Linux or WSL)
 - Git with offline capture support (`--no-lazy-fetch`) for `wl git`; the implementation has been verified with Git 2.52.0
 - An internet connection for downloading Go modules during the first build
 
 ## Installation
+
+### macOS and Linux
 
 Clone the repository and build an executable named `wl`:
 
@@ -37,6 +39,69 @@ wl --help
 
 Local builds display `dev` as the version. Release builds can embed a version number using Go linker flags.
 
+### Windows (PowerShell)
+
+Install Go 1.22 or later using the Windows x64 installer from [Go downloads](https://go.dev/dl/), and install [Git for Windows](https://git-scm.com/download/win). Open a new PowerShell window after installation, then verify both tools:
+
+```powershell
+go version
+git --version
+```
+
+Clone the repository and build `wl.exe` in a directory under your Windows user profile:
+
+```powershell
+git clone https://github.com/taupikpirdian/wlog.git
+Set-Location wlog
+
+$wlInstallDir = Join-Path $env:USERPROFILE ".local\bin"
+New-Item -ItemType Directory -Force -Path $wlInstallDir | Out-Null
+go build -o (Join-Path $wlInstallDir "wl.exe") ./cmd/wlog
+```
+
+Add the directory to the current PowerShell session's `PATH`:
+
+```powershell
+$env:Path = "$wlInstallDir;$env:Path"
+wl --version
+wl --help
+```
+
+To make it available in future terminals, add the directory to your user `PATH` without replacing its existing entries:
+
+```powershell
+$wlUserPath = [Environment]::GetEnvironmentVariable("Path", "User")
+if ($wlInstallDir -notin ($wlUserPath -split ";")) {
+    [Environment]::SetEnvironmentVariable("Path", "$wlUserPath;$wlInstallDir".Trim(";"), "User")
+}
+```
+
+Restart your terminal application, then run:
+
+```powershell
+wl
+wl s OOT-3751 "Fix tax calculation"
+wl n "Check tax calculation"
+wl today
+wl x
+```
+
+The default configuration and database are stored in `%USERPROFILE%\.worklog\config.yaml` and `%USERPROFILE%\.worklog\worklog.db`. Native Windows builds include sessions, manual time entry, notes, the dashboard, today's timeline, and manual Git capture with `wl git`.
+
+`wl install-hooks` and its alias return an unsupported-platform error on native Windows without modifying hooks. Use `wl git` for manual capture, or use the WSL installation below for automatic hook installation. Windows x64 cross-compilation has been verified; runtime behavior has not yet been tested on a Windows machine.
+
+### Windows with WSL
+
+To use the Linux version, including automatic hook installation, install WSL from an administrator PowerShell window:
+
+```powershell
+wsl --install -d Ubuntu
+```
+
+Follow the setup prompts and restart if requested. See [Microsoft's WSL installation guide](https://learn.microsoft.com/en-us/windows/wsl/install) for system requirements and troubleshooting.
+
+Inside the Ubuntu terminal, install Go 1.22 or later using the [Go installation instructions](https://go.dev/doc/install) and install Git. Then follow the macOS/Linux build and `PATH` steps above inside WSL. Build and run the Linux `wl` executable in that environment for `wl install-hooks`. WSL uses its Linux home directory and a separate `~/.worklog` database by default.
+
 ## Usage
 
 Run without arguments to view the active session dashboard and today's tracked time:
@@ -53,7 +118,7 @@ On first use, `wl` creates:
 └── worklog.db
 ```
 
-Subsequent runs reuse the same configuration and database and apply any pending migrations. New directories and files are created with access restricted to the current user.
+Subsequent runs reuse the same configuration and database and apply any pending migrations. On macOS and Linux, new directories and files use permissions restricted to the current user. On Windows, access follows Windows folder permissions; Unix permission bits do not set Windows ACLs.
 
 The dashboard displays the active session's ticket, title, start time, and elapsed duration, followed by today's tracked time per ticket. When there is no work, it displays `No active session` and a total of `0m`. Sessions spanning midnight contribute only the portion that falls within today; the active session's elapsed duration still includes all time since it started.
 
@@ -157,6 +222,8 @@ Commits can be captured without an active session and do not add tracked time. C
 `capture_changed_files` and `capture_diff_stat` can be disabled independently. Statistics exclude `.env*` contents; binary files do not contribute to text line counts. Full diffs are not collected, even when `capture_full_diff: true` is configured—the command displays a warning and still stores metadata. Unavailable supplementary metadata produces warnings; Git identity or storage failures produce a non-zero exit status.
 
 ## Installing Automatic Git Hooks
+
+Automatic installation is available on macOS and Linux, including Linux inside WSL. Native Windows users can capture commits with `wl git`.
 
 Run from the root or a subdirectory of a Git repository:
 
