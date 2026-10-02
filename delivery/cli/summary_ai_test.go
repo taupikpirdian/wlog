@@ -222,3 +222,26 @@ func TestAIFormatterControlledFactsAndBullets(t *testing.T) {
 		t.Fatalf("got=%q want=%q", got, want)
 	}
 }
+
+func TestAIFormatterNewEnvironmentSection(t *testing.T) {
+	for _, tc := range []struct {
+		language application.OutputLanguage
+		label    string
+	}{
+		{application.LanguageIndonesian, "Env Baru"},
+		{application.LanguageEnglish, "New Environment Variables"},
+	} {
+		result := application.AIResult{
+			Context:  application.TicketAIContext{OutputLanguage: tc.language, Summary: application.Result{Day: domain.Day{Seconds: 7200}, Email: "dev@example.com"}},
+			Response: application.AIResponse{Worklog: application.WorklogText{Details: []string{"Configure service"}, Results: []string{}, EnvironmentVariables: []string{"API_TOKEN", "AUTH_URL", "API_TOKEN"}}},
+		}
+		got := formatAISummary(result)
+		if !strings.Contains(got, "\n"+tc.label+":\n- API_TOKEN\n- AUTH_URL\n\nDev By:\ndev@example.com") || strings.Count(got, "- API_TOKEN\n") != 1 || !strings.Contains(got, "Time:\n2h") {
+			t.Fatalf("summary=%q", got)
+		}
+		result.Response.Worklog.EnvironmentVariables = nil
+		if got := formatAISummary(result); strings.Contains(got, tc.label) {
+			t.Fatalf("empty environment section shown: %q", got)
+		}
+	}
+}

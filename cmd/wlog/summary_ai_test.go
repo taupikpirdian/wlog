@@ -35,7 +35,7 @@ func (a *integrationAgent) Capabilities() application.AICapabilities {
 func (a *integrationAgent) Generate(_ context.Context, request application.AIRequest, progress application.ProgressHandler) (*application.AIResponse, error) {
 	a.requests = append(a.requests, request)
 	progress(application.ProgressEvent{Provider: "custom", Type: application.ProgressTool, RepositoryPath: request.WorkingDirectory, Message: "Inspecting supplied diff"})
-	return &application.AIResponse{Worklog: application.WorklogText{Details: []string{"Observed change"}, Results: []string{}}, TicketDescription: application.TicketDescription{Background: "Recorded changes", ProblemRequirement: "Observed requirement", Scope: []string{"Update value"}, ExpectedResult: "New value"}}, nil
+	return &application.AIResponse{Worklog: application.WorklogText{Details: []string{"Observed change"}, Results: []string{}, EnvironmentVariables: []string{"CAPTURED_ENV", "EXISTING_ENV", "HEAD_ONLY_ENV"}}, TicketDescription: application.TicketDescription{Background: "Recorded changes", ProblemRequirement: "Observed requirement", Scope: []string{"Update value"}, ExpectedResult: "New value"}}, nil
 }
 
 type integrationAgents struct{ agent *integrationAgent }
@@ -59,21 +59,31 @@ func aiRepository(t *testing.T) (string, string) {
 	}
 	run("init", "--quiet")
 	file := filepath.Join(directory, "value.go")
+	envFile := filepath.Join(directory, ".env.example")
 	if err := os.WriteFile(file, []byte("package fixture\nconst Value = 1\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	run("add", "value.go")
+	if err := os.WriteFile(envFile, []byte("EXISTING_ENV=old\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	run("add", "value.go", ".env.example")
 	run("commit", "--quiet", "-m", "Initial")
 	if err := os.WriteFile(file, []byte("package fixture\nconst Value = 2\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	run("add", "value.go")
+	if err := os.WriteFile(envFile, []byte("EXISTING_ENV=new\nCAPTURED_ENV=private-fixture-value\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	run("add", "value.go", ".env.example")
 	run("commit", "--quiet", "-m", "Captured ticket change")
 	hash := run("rev-parse", "HEAD")
 	if err := os.WriteFile(file, []byte("package fixture\nconst Value = 999\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	run("add", "value.go")
+	if err := os.WriteFile(envFile, []byte("EXISTING_ENV=new\nCAPTURED_ENV=private-fixture-value\nHEAD_ONLY_ENV=placeholder\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	run("add", "value.go", ".env.example")
 	run("commit", "--quiet", "-m", "Uncaptured HEAD")
 	return directory, hash
 }
@@ -159,6 +169,14 @@ func TestAISummaryReadsDatabaseRepositoriesOutsideCurrentDirectory(t *testing.T)
 	}
 	if !strings.Contains(out.String(), "Time:\n2h") || !strings.Contains(out.String(), "Dev By:\ndeveloper@example.com") || strings.Contains(out.String(), "[Custom]") {
 		t.Fatalf("final output=%q", out.String())
+	}
+	if !strings.Contains(out.String(), "New Environment Variables:\n- CAPTURED_ENV\n") || strings.Count(out.String(), "- CAPTURED_ENV\n") != 1 {
+		t.Fatalf("new captured environment missing or duplicated: %q", out.String())
+	}
+	for _, excluded := range []string{"EXISTING_ENV", "HEAD_ONLY_ENV", "private-fixture-value"} {
+		if strings.Contains(out.String(), excluded) {
+			t.Fatalf("non-new/uncaptured environment or value leaked into summary: %q", out.String())
+		}
 	}
 
 	// The short command selects this Friday ticket directly from the week;

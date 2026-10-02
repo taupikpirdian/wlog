@@ -43,8 +43,9 @@ type AIRequest struct {
 	Skill            TicketSkill
 }
 type WorklogText struct {
-	Details []string `json:"details"`
-	Results []string `json:"results"`
+	Details              []string `json:"details"`
+	Results              []string `json:"results"`
+	EnvironmentVariables []string `json:"environment_variables,omitempty"`
 }
 type TicketDescription struct {
 	Background         string   `json:"background"`
@@ -218,6 +219,8 @@ func generateAI(ctx context.Context, value TicketAIContext, config bootstrap.AIC
 		if err := ValidateAIResponse(response); err != nil {
 			return AIResult{}, err
 		}
+		// Worklogs alone cannot establish that an environment variable was added.
+		response.Worklog.EnvironmentVariables = nil
 		responses = append(responses, *response)
 	} else {
 		for i := range value.Repositories {
@@ -241,6 +244,11 @@ func generateAI(ctx context.Context, value TicketAIContext, config bootstrap.AIC
 			if err := ValidateAIResponse(response); err != nil {
 				return AIResult{}, err
 			}
+			if value.TicketOnly {
+				response.Worklog.EnvironmentVariables = nil
+			} else {
+				response.Worklog.EnvironmentVariables = environmentVariablesWithEvidence(response.Worklog.EnvironmentVariables, repo)
+			}
 			responses = append(responses, *response)
 			emitProgress(handler, ProgressEvent{Type: ProgressStatus, RepositoryPath: repo.Path, Message: "Repository analysis completed"})
 		}
@@ -250,12 +258,14 @@ func generateAI(ctx context.Context, value TicketAIContext, config bootstrap.AIC
 	for _, response := range responses {
 		combined.Worklog.Details = append(combined.Worklog.Details, response.Worklog.Details...)
 		combined.Worklog.Results = append(combined.Worklog.Results, response.Worklog.Results...)
+		combined.Worklog.EnvironmentVariables = append(combined.Worklog.EnvironmentVariables, response.Worklog.EnvironmentVariables...)
 		combined.TicketDescription.Background = joinText(combined.TicketDescription.Background, response.TicketDescription.Background)
 		combined.TicketDescription.ProblemRequirement = joinText(combined.TicketDescription.ProblemRequirement, response.TicketDescription.ProblemRequirement)
 		combined.TicketDescription.Scope = append(combined.TicketDescription.Scope, response.TicketDescription.Scope...)
 		combined.TicketDescription.ExpectedResult = joinText(combined.TicketDescription.ExpectedResult, response.TicketDescription.ExpectedResult)
 		combined.TicketDescription.TechnicalNotes = joinText(combined.TicketDescription.TechnicalNotes, response.TicketDescription.TechnicalNotes)
 	}
+	combined.Worklog.EnvironmentVariables = uniqueEnvironmentNames(combined.Worklog.EnvironmentVariables)
 	return AIResult{Context: value, Response: combined}, nil
 }
 func joinText(a, b string) string {

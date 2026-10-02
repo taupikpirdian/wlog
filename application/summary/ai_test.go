@@ -87,6 +87,7 @@ func TestCodeContextMultipleRepositoriesDedupAndDegraded(t *testing.T) {
 type fakeAgent struct {
 	requests []application.AIRequest
 	err      error
+	body     string
 }
 
 func (a *fakeAgent) Capabilities() application.AICapabilities { return application.AICapabilities{} }
@@ -95,7 +96,11 @@ func (a *fakeAgent) Generate(_ context.Context, r application.AIRequest, _ appli
 	if a.err != nil {
 		return nil, a.err
 	}
-	return application.ParseAIResponse([]byte(validResponse))
+	body := a.body
+	if body == "" {
+		body = validResponse
+	}
+	return application.ParseAIResponse([]byte(body))
 }
 
 type fakeFactory struct {

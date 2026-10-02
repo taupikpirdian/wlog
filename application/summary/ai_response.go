@@ -10,7 +10,7 @@ import (
 )
 
 // This schema deliberately excludes all factual metadata controlled by wlog.
-const ResponseSchema = `{"type":"object","additionalProperties":false,"required":["worklog","ticket_description"],"properties":{"worklog":{"type":"object","additionalProperties":false,"required":["details","results"],"properties":{"details":{"type":"array","minItems":1,"items":{"type":"string","minLength":1}},"results":{"type":"array","items":{"type":"string","minLength":1}}}},"ticket_description":{"type":"object","additionalProperties":false,"required":["background","problem_requirement","scope","expected_result","technical_notes"],"properties":{"background":{"type":"string","minLength":1},"problem_requirement":{"type":"string","minLength":1},"scope":{"type":"array","minItems":1,"items":{"type":"string","minLength":1}},"expected_result":{"type":"string","minLength":1},"technical_notes":{"type":"string"}}}}}`
+const ResponseSchema = `{"type":"object","additionalProperties":false,"required":["worklog","ticket_description"],"properties":{"worklog":{"type":"object","additionalProperties":false,"required":["details","results","environment_variables"],"properties":{"details":{"type":"array","minItems":1,"items":{"type":"string","minLength":1}},"results":{"type":"array","items":{"type":"string","minLength":1}},"environment_variables":{"type":"array","items":{"type":"string","pattern":"^[A-Za-z_][A-Za-z0-9_]*$"}}}},"ticket_description":{"type":"object","additionalProperties":false,"required":["background","problem_requirement","scope","expected_result","technical_notes"],"properties":{"background":{"type":"string","minLength":1},"problem_requirement":{"type":"string","minLength":1},"scope":{"type":"array","minItems":1,"items":{"type":"string","minLength":1}},"expected_result":{"type":"string","minLength":1},"technical_notes":{"type":"string"}}}}}`
 
 func ParseAIResponse(body []byte) (*AIResponse, error) {
 	decoder := json.NewDecoder(bytes.NewReader(body))
@@ -43,6 +43,13 @@ func ValidateAIResponse(r *AIResponse) error {
 	}
 	if r.Worklog.Results == nil {
 		return errors.New("AI response invalid: worklog.results is required (use [] when no result is supported)")
+	}
+	// Omission remains compatible with existing custom agents. Names, when
+	// present, must be identifiers rather than assignments or secret values.
+	for _, name := range r.Worklog.EnvironmentVariables {
+		if !environmentNamePattern.MatchString(name) {
+			return errors.New("AI response invalid: worklog.environment_variables must contain environment variable names only, without values")
+		}
 	}
 	for name, items := range map[string][]string{"worklog.details": r.Worklog.Details, "worklog.results": r.Worklog.Results, "ticket_description.scope": r.TicketDescription.Scope} {
 		for _, text := range items {
