@@ -24,9 +24,14 @@ type Store struct{}
 
 func NewStore() *Store { return &Store{} }
 
+func (*Store) Read(context.Context, domain.Location) (domain.Snapshot, error) {
+	return domain.Snapshot{}, ErrUnsupportedPlatform
+}
+
 func (*Store) Apply(context.Context, domain.Location, application.Planner) (domain.Plan, error) {
 	return domain.Plan{}, ErrUnsupportedPlatform
 }
 
 var _ application.Inspector = (*Inspector)(nil)
 var _ application.Store = (*Store)(nil)
+var _ application.SnapshotReader = (*Store)(nil)

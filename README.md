@@ -5,6 +5,7 @@
 ## Features
 
 - **Dashboard** — View the active session, elapsed time, and today's tracked time per ticket with `wl`.
+- **Repository status** — Show the dashboard and check automatic commit capture for the current repository with `wl status`.
 - **Daily timeline** — Review `START`, `NOTE`, `COMMIT`, and `STOP` events in chronological order with `wl today`.
 - **Work sessions** — Start and stop ticket-based sessions with `wl start` / `wl s` and `wl stop` / `wl x`.
 - **Manual time entry** — Add completed sessions with `wl session --from --to --title`, or backdate an active session with `wl s --since`; overlapping ranges are rejected.
@@ -62,7 +63,14 @@ Make sure `~/.local/bin` is on your `PATH`. For the current terminal session:
 export PATH="$HOME/.local/bin:$PATH"
 ```
 
-To make this permanent, add the line to your shell configuration file, such as `~/.zshrc` or `~/.bashrc`, then open a new terminal.
+To make this permanent in Zsh (the default shell on macOS), add the export line to `~/.zshrc` and reload it:
+
+```sh
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
+source ~/.zshrc
+```
+
+Run the `echo` command once to avoid duplicate entries. New terminal sessions will load this setting automatically. For Bash, add the same export line to `~/.bashrc` and run `source ~/.bashrc`.
 
 Verify the installation:
 
@@ -258,6 +266,16 @@ Commits can be captured without an active session and do not add tracked time. C
 ## Installing Automatic Git Hooks
 
 Automatic installation is available on macOS and Linux, including Linux inside WSL. Native Windows users can capture commits with `wl git`.
+
+Check the current repository's integration alongside the work dashboard:
+
+```sh
+wl status
+```
+
+The status shows the repository and whether its managed `post-commit` hook is installed. If it is missing, it suggests `wl install-hooks`; if executable permissions are missing, it suggests the same command to repair them. Modified or conflicting hooks and custom `core.hooksPath` settings are reported as unverified. Outside a Git worktree, when Git is unavailable, or on unsupported platforms, the dashboard still appears with an explanation that hook status is unavailable. Checking status does not install or modify hooks.
+
+Run `wl install-hooks` once in each repository where you want automatic capture. Other repositories remain unaffected; linked worktrees sharing the same default hooks directory share the installation.
 
 Run from the root or a subdirectory of a Git repository:
 

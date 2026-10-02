@@ -111,6 +111,23 @@ func TestDashboardFactoryFailures(t *testing.T) {
 	}
 }
 
+func TestStatusCommandWithRealFactories(t *testing.T) {
+	factory := dashboardFactory(fixtureLoader(func(context.Context) (bootstrap.Config, error) {
+		return bootstrap.Config{DatabasePath: filepath.Join(t.TempDir(), "worklog.db")}, nil
+	}), time.Now, time.Local)
+	root := cli.NewRootCommand(factory, "test", nil, nil)
+	root.AddCommand(cli.NewStatusCommand(factory, openHookStatus))
+	var out bytes.Buffer
+	root.SetOut(&out)
+	root.SetArgs([]string{"status"})
+	if err := root.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), "No active session") || !strings.Contains(out.String(), "Git hook:") {
+		t.Fatal(out.String())
+	}
+}
+
 // Benchmark includes opening/migrating the existing database, snapshot, domain
 // projection, rendering and close. Fixture setup is excluded from the timer.
 func BenchmarkDailyCommands(b *testing.B) {

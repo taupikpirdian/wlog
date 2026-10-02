@@ -23,7 +23,9 @@ import (
 var version = "dev"
 
 func main() {
-	root := cli.NewRootCommand(dashboardFactory(configfile.NewLoader(), time.Now, time.Local), version, openSessions, openNotes, openGitCaptures)
+	dashboard := dashboardFactory(configfile.NewLoader(), time.Now, time.Local)
+	root := cli.NewRootCommand(dashboard, version, openSessions, openNotes, openGitCaptures)
+	root.AddCommand(cli.NewStatusCommand(dashboard, openHookStatus))
 	root.AddCommand(cli.NewInstallHooksCommand(openHooks))
 	cli.AddManualSessionCommands(root, manualSessionFactory(configfile.NewLoader(), time.Now, time.Local, gitcontext.Current))
 	if err := root.Execute(); err != nil {
@@ -70,6 +72,14 @@ func openHooks(context.Context) (cli.HookInstaller, error) {
 		return nil, err
 	}
 	return applicationhook.NewService(githook.NewInspector(directory), githook.NewStore()), nil
+}
+
+func openHookStatus(context.Context) (cli.HookStatusReader, error) {
+	directory, err := os.Getwd()
+	if err != nil {
+		return nil, err
+	}
+	return applicationhook.NewStatusService(githook.NewInspector(directory), githook.NewStore()), nil
 }
 
 func openGitCaptures(ctx context.Context) (cli.GitCaptureService, func() error, error) {

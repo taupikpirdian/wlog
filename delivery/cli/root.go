@@ -8,9 +8,13 @@ import (
 
 func NewRootCommand(dashboard DashboardFactory, version string, sessions SessionFactory, notes NoteFactory, captures ...GitFactory) *cobra.Command {
 	root := &cobra.Command{
-		Use:           "wl",
-		Short:         "Capture developer work activity and prepare Jira worklogs",
-		Long:          "Developer Worklog CLI displays today's tracked work and captures local work activity.",
+		Use:   "wl",
+		Short: "Capture developer work activity and prepare Jira worklogs",
+		Long:  "Developer Worklog CLI displays today's tracked work and captures local work activity.",
+		Example: `  wl s OOT-3751 "Fix tax calculation"
+  wl n "Check tax calculation"
+  wl today
+  wl x`,
 		Version:       version,
 		SilenceErrors: true,
 		SilenceUsage:  true,
