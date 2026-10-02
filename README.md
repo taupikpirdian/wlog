@@ -18,6 +18,12 @@
 
 These examples use demo data and show output from the CLI.
 
+**Animated workflow — commit capture, dashboard, and session notes**
+
+![Animated CLI demo: install the post-commit hook, commit with automatic capture, dashboard, start session, add a note, stop session, and review the daily timeline](docs/images/workflow.gif)
+
+The demo installs `wl install-hooks` once in a temporary repository, then makes a real commit. The local Git `post-commit` hook captures it automatically, so no manual `wl git` command is needed. With no active session, the commit appears under **Unsessioned** on the dashboard. The demo then starts a session, adds a note, stops it, and reviews the timeline. The demo clock advances between steps; commits and notes do not add tracked time. Automatic hook installation is available on macOS, Linux, and WSL; `wl` must be on Git's `PATH`.
+
 **Dashboard — active session and daily totals**
 
 ![Dashboard showing the active session, tracked time per ticket, and an unsessioned commit](docs/images/dashboard.svg)
