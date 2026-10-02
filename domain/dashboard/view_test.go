@@ -41,7 +41,7 @@ func TestDailyViewClipsAndAggregatesWithoutChangingSources(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []domain.TicketSummary{{"OOT-3668", 2700}, {"OOT-3747", 4500}, {"OOT-3751", 9000}, {"OOT-9", 0}}
+	want := []domain.TicketSummary{{Key: "OOT-3668", Seconds: 2700}, {Key: "OOT-3747", Seconds: 4500}, {Key: "OOT-3751", Seconds: 9000}, {Key: "OOT-9", Seconds: 0}}
 	if !reflect.DeepEqual(view.Tickets, want) || view.TotalSeconds != 16200 || view.Active == nil || view.Active.ElapsedSeconds != 6120 {
 		t.Fatalf("view: %+v", view)
 	}
@@ -129,6 +129,37 @@ func TestDailyTotalPreservesSecondsBeforePresentation(t *testing.T) {
 	}}, now, time.UTC)
 	if err != nil || view.TotalSeconds != 80 || len(view.Tickets) != 2 || view.Tickets[0].Seconds != 40 || view.Tickets[1].Seconds != 40 {
 		t.Fatalf("seconds lost: %+v %v", view, err)
+	}
+}
+
+func TestRepositoryNamesFollowStoredSessionsAndActivities(t *testing.T) {
+	now := instant("2026-10-02T12:00:00Z")
+	repoA, repoB, oldRepo := "/work/api", "/work/frontend", "/work/yesterday"
+	one := finished(1, "OOT-1", "2026-10-02T09:00:00Z", "2026-10-02T10:00:00Z")
+	one.Repository = &repoA
+	two := finished(2, "OOT-1", "2026-10-02T10:00:00Z", "2026-10-02T11:00:00Z")
+	two.Repository = &repoB
+	old := finished(3, "OOT-1", "2026-10-01T09:00:00Z", "2026-10-01T10:00:00Z")
+	old.Repository = &oldRepo
+	view, err := domain.Build(domain.Snapshot{Sessions: []session.Session{one, two, old}, Activities: []domain.Activity{
+		{ID: 1, Type: "NOTE", TicketKey: "OOT-1", Repository: repoA, At: now},
+		{ID: 2, Type: "GIT_COMMIT", TicketKey: "OOT-1", Repository: "/work/tools", At: now},
+		{ID: 3, Type: "GIT_COMMIT", Repository: repoB, At: now},
+	}}, now, time.UTC)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{repoA, repoB, "/work/tools"}
+	if len(view.Tickets) != 1 || !reflect.DeepEqual(view.Tickets[0].Repositories, want) || view.TotalSeconds != 7200 {
+		t.Fatalf("summaries=%+v total=%d", view.Tickets, view.TotalSeconds)
+	}
+	for _, event := range view.Events {
+		if event.Repository == "" || event.Repository == oldRepo {
+			t.Fatalf("incorrect event repository: %+v", event)
+		}
+	}
+	if view.Unsessioned[1].Repository != "/work/tools" || view.Unassigned[0].Repository != repoB {
+		t.Fatalf("commit repositories lost: %+v %+v", view.Unsessioned, view.Unassigned)
 	}
 }
 

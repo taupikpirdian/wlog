@@ -162,7 +162,7 @@ On first use, `wl` creates:
 
 Subsequent runs reuse the same configuration and database and apply any pending migrations. On macOS and Linux, new directories and files use permissions restricted to the current user. On Windows, access follows Windows folder permissions; Unix permission bits do not set Windows ACLs.
 
-The dashboard displays the active session's ticket, title, start time, and elapsed duration, followed by today's tracked time per ticket. When there is no work, it displays `No active session` and a total of `0m`. Sessions spanning midnight contribute only the portion that falls within today; the active session's elapsed duration still includes all time since it started.
+The dashboard displays the active session's ticket, title, repository folder name, start time, and elapsed duration, followed by today's tracked time per ticket. Each ticket lists the repository folder names associated with its sessions and activities today. When there is no work, it displays `No active session` and a total of `0m`. Sessions spanning midnight contribute only the portion that falls within today; the active session's elapsed duration still includes all time since it started.
 
 Review today's events:
 
@@ -170,7 +170,7 @@ Review today's events:
 wl today
 ```
 
-The timeline displays `START`, `NOTE`, `COMMIT`, and `STOP` in chronological order, with a ticket on each line. Dates and times use the device's local time zone, and all repositories in the user's database are included. Active sessions do not receive an artificial `STOP` event.
+The timeline displays `START`, `NOTE`, `COMMIT`, and `STOP` in chronological order, with a ticket and repository folder name on each line, for example `[repo: wlog]`. Repository names come from the stored activity or session, so records from different repositories retain their own labels regardless of your current directory. Records without repository information display `[repo: -]`. Dates and times use the device's local time zone, and all repositories in the user's database are included. Active sessions do not receive an artificial `STOP` event.
 
 Notes and commits provide evidence and do not add tracked time. Commits with a ticket but no session appear under `Unsessioned` in the dashboard; commits without a ticket appear under `Unassigned`. The timeline includes both. Daily durations are summed in seconds before being displayed in minutes, so the total may differ from the sum of the displayed minutes for individual tickets.
 

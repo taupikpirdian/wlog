@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path"
+	"sort"
 	"strings"
 	"unicode"
 
@@ -54,13 +56,18 @@ func renderDashboard(v domain.View) string {
 			layout = "2006-01-02 15:04"
 		}
 		fmt.Fprintf(&b, "Active Session\n%s — %s\n\nStarted : %s\nDuration: %s\n", safeText(active.Session.TicketKey), safeText(active.Session.Title), active.Session.StartedAt.In(v.Location).Format(layout), dailyDuration(active.ElapsedSeconds))
+		repository := ""
+		if active.Session.Repository != nil {
+			repository = *active.Session.Repository
+		}
+		fmt.Fprintf(&b, "Repo    : %s\n", repositoryName(repository))
 	}
 	b.WriteString("\nToday\n─────────────────────────────\n")
 	if len(v.Tickets) == 0 {
 		b.WriteString("No tracked sessions today\n")
 	}
 	for _, ticket := range v.Tickets {
-		fmt.Fprintf(&b, "%-12s %s\n", safeText(ticket.Key), dailyDuration(ticket.Seconds))
+		fmt.Fprintf(&b, "%-12s %s  [repo: %s]\n", safeText(ticket.Key), dailyDuration(ticket.Seconds), repositoryNames(ticket.Repositories))
 	}
 	fmt.Fprintf(&b, "Total        %s\n", dailyDuration(v.TotalSeconds))
 	for _, section := range []struct {
@@ -107,7 +114,33 @@ func writeEvent(b *strings.Builder, event domain.Event, v domain.View) {
 		}
 		fmt.Fprintf(b, " [%s]", string(hash))
 	}
-	b.WriteByte('\n')
+	fmt.Fprintf(b, " [repo: %s]\n", repositoryName(event.Repository))
+}
+
+func repositoryName(repository string) string {
+	// Stored paths may originate from Windows even when viewed on macOS/Linux.
+	name := path.Base(strings.TrimRight(strings.ReplaceAll(repository, "\\", "/"), "/"))
+	if name == "." || name == "" {
+		return "-"
+	}
+	return safeText(name)
+}
+
+func repositoryNames(repositories []string) string {
+	if len(repositories) == 0 {
+		return "-"
+	}
+	seen := map[string]bool{}
+	var names []string
+	for _, repository := range repositories {
+		name := repositoryName(repository)
+		if !seen[name] {
+			names = append(names, name)
+			seen[name] = true
+		}
+	}
+	sort.Strings(names)
+	return strings.Join(names, ", ")
 }
 
 func dailyDuration(seconds int64) string {

@@ -89,6 +89,29 @@ func TestDailySnapshotFailures(t *testing.T) {
 	}
 }
 
+func TestDailySnapshotLoadsRepositoryAndFallsBackToLinkedSession(t *testing.T) {
+	db, _ := sessionDatabase(t)
+	dailyFixture(t, db)
+	for _, statement := range []string{
+		`UPDATE work_sessions SET repository='/work/api' WHERE id=1`,
+		`UPDATE work_activities SET repository='/work/tools' WHERE id=2`,
+	} {
+		if _, err := db.Exec(statement); err != nil {
+			t.Fatal(err)
+		}
+	}
+	snapshot, err := NewSQLiteDashboardStore(db).ReadSnapshot(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if snapshot.Sessions[0].Repository == nil || *snapshot.Sessions[0].Repository != "/work/api" || snapshot.Sessions[1].Repository != nil {
+		t.Fatalf("sessions=%+v", snapshot.Sessions)
+	}
+	if snapshot.Activities[0].Repository != "/work/api" || snapshot.Activities[1].Repository != "/work/tools" || snapshot.Activities[2].Repository != "" {
+		t.Fatalf("activities=%+v", snapshot.Activities)
+	}
+}
+
 // The barrier delays the second query while another connection commits. The
 // already-established transaction must still read the original activity set.
 type barrierSnapshot struct {

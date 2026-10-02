@@ -19,27 +19,30 @@ type Snapshot struct {
 }
 
 type Activity struct {
-	ID        int64
-	TicketKey string
-	SessionID *int64
-	Type      string
-	Text      string
-	Hash      string
-	At        time.Time
+	ID         int64
+	TicketKey  string
+	SessionID  *int64
+	Type       string
+	Text       string
+	Hash       string
+	At         time.Time
+	Repository string
 }
 
 type Event struct {
-	At        time.Time
-	Kind      string
-	TicketKey string
-	Text      string
-	Hash      string
-	SourceID  int64
+	At         time.Time
+	Kind       string
+	TicketKey  string
+	Text       string
+	Hash       string
+	SourceID   int64
+	Repository string
 }
 
 type TicketSummary struct {
-	Key     string
-	Seconds int64
+	Key          string
+	Seconds      int64
+	Repositories []string
 }
 type ActiveView struct {
 	Session        session.Session
@@ -63,7 +66,21 @@ func Build(source Snapshot, now time.Time, location *time.Location) (View, error
 	start := time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, location)
 	view := View{Now: now, Start: start, End: start.AddDate(0, 0, 1), Location: location}
 	totals := map[string]int64{}
+	repositories := map[string]map[string]struct{}{}
+	addRepository := func(key, repository string) {
+		if repository == "" {
+			return
+		}
+		if repositories[key] == nil {
+			repositories[key] = map[string]struct{}{}
+		}
+		repositories[key][repository] = struct{}{}
+	}
 	for _, s := range source.Sessions {
+		repository := ""
+		if s.Repository != nil {
+			repository = *s.Repository
+		}
 		if s.TicketKey == "" {
 			return View{}, fmt.Errorf("%w: session %d has no ticket", ErrInvalidData, s.ID)
 		}
@@ -94,14 +111,17 @@ func Build(source Snapshot, now time.Time, location *time.Location) (View, error
 			seconds := int64(until.Sub(from) / time.Second)
 			totals[s.TicketKey] += seconds
 			view.TotalSeconds += seconds
+			addRepository(s.TicketKey, repository)
 		}
 		if view.contains(s.StartedAt) {
-			view.Events = append(view.Events, Event{At: s.StartedAt, Kind: "START", TicketKey: s.TicketKey, SourceID: s.ID})
+			view.Events = append(view.Events, Event{At: s.StartedAt, Kind: "START", TicketKey: s.TicketKey, SourceID: s.ID, Repository: repository})
 			totals[s.TicketKey] += 0
+			addRepository(s.TicketKey, repository)
 		}
 		if s.Status == session.Completed && view.contains(*s.EndedAt) {
-			view.Events = append(view.Events, Event{At: *s.EndedAt, Kind: "STOP", TicketKey: s.TicketKey, SourceID: s.ID})
+			view.Events = append(view.Events, Event{At: *s.EndedAt, Kind: "STOP", TicketKey: s.TicketKey, SourceID: s.ID, Repository: repository})
 			totals[s.TicketKey] += 0
+			addRepository(s.TicketKey, repository)
 		}
 	}
 	for _, a := range source.Activities {
@@ -119,19 +139,25 @@ func Build(source Snapshot, now time.Time, location *time.Location) (View, error
 		if !view.contains(a.At) {
 			continue
 		}
-		event := Event{At: a.At, Kind: kind, TicketKey: a.TicketKey, Text: text, Hash: a.Hash, SourceID: a.ID}
+		event := Event{At: a.At, Kind: kind, TicketKey: a.TicketKey, Text: text, Hash: a.Hash, SourceID: a.ID, Repository: a.Repository}
 		view.Events = append(view.Events, event)
 		if a.TicketKey == "" {
 			view.Unassigned = append(view.Unassigned, event)
 		} else {
 			totals[a.TicketKey] += 0
+			addRepository(a.TicketKey, a.Repository)
 			if a.SessionID == nil {
 				view.Unsessioned = append(view.Unsessioned, event)
 			}
 		}
 	}
 	for key, seconds := range totals {
-		view.Tickets = append(view.Tickets, TicketSummary{key, seconds})
+		summary := TicketSummary{Key: key, Seconds: seconds}
+		for repository := range repositories[key] {
+			summary.Repositories = append(summary.Repositories, repository)
+		}
+		sort.Strings(summary.Repositories)
+		view.Tickets = append(view.Tickets, summary)
 	}
 	sort.Slice(view.Tickets, func(i, j int) bool { return view.Tickets[i].Key < view.Tickets[j].Key })
 	sortEvents(view.Events)

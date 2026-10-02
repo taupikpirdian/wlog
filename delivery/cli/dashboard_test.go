@@ -186,3 +186,36 @@ func TestSafeEvidenceText(t *testing.T) {
 		}
 	}
 }
+
+func TestDashboardAndTimelineShowRepositoryFolderNames(t *testing.T) {
+	value := dailyView(t)
+	repository := "/work/backend"
+	value.Active.Session.Repository = &repository
+	value.Tickets[0].Repositories = []string{`C:\work\frontend`, repository, "/other/backend"}
+	for i := range value.Events {
+		value.Events[i].Repository = repository
+	}
+	for i := range value.Unsessioned {
+		value.Unsessioned[i].Repository = "/work/tools"
+	}
+	for i := range value.Unassigned {
+		value.Unassigned[i].Repository = "/work/sandbox"
+	}
+	dashboard := renderDashboard(value)
+	for _, want := range []string{"Repo    : backend", "[repo: backend, frontend]", "[repo: tools]", "[repo: sandbox]"} {
+		if !strings.Contains(dashboard, want) {
+			t.Fatalf("missing %q: %s", want, dashboard)
+		}
+	}
+	timeline := renderTimeline(value)
+	if strings.Count(timeline, "[repo: backend]") != len(value.Events) || strings.Contains(timeline, "/work/") {
+		t.Fatal(timeline)
+	}
+	for _, tc := range []struct{ input, want string }{
+		{"", "-"}, {"/work/api/", "api"}, {`C:\work\api\`, "api"}, {"/work/\x1b[31mrepo\x1b[0m\n", "repo "},
+	} {
+		if got := repositoryName(tc.input); got != tc.want {
+			t.Fatalf("repositoryName(%q)=%q want %q", tc.input, got, tc.want)
+		}
+	}
+}
