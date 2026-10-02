@@ -116,9 +116,35 @@ wl git
 
 Command mencatat HEAD terbaru beserta message, branch bila tersedia, file yang berubah, statistik baris teks, dan waktu commit. Tiket dipilih berdasarkan urutan: commit message, sesi aktif, branch, lalu `UNASSIGNED`. Jika tiket sama dengan sesi aktif, commit dikaitkan ke sesi tersebut. Jika berbeda, commit disimpan pada tiketnya tanpa sesi dan menampilkan warning.
 
-Commit tetap tercatat tanpa sesi aktif dan tidak menambah durasi pekerjaan. Capture ulang repository+hash yang sama menampilkan `✓ Commit already captured.` tanpa menggandakan atau memindahkan catatan lama. Command tidak memasang Git hook; integrasi otomatis lewat hook tersedia pada tahap berikutnya.
+Commit tetap tercatat tanpa sesi aktif dan tidak menambah durasi pekerjaan. Capture ulang repository+hash yang sama menampilkan `✓ Commit already captured.` tanpa menggandakan atau memindahkan catatan lama.
 
 `capture_changed_files` dan `capture_diff_stat` dapat dinonaktifkan secara terpisah. Statistik mengecualikan isi `.env*`; binary tidak menambah jumlah baris teks. Full diff belum dikumpulkan, termasuk bila `capture_full_diff: true` diatur—command memberi warning dan tetap menyimpan metadata. Metadata tambahan yang tidak tersedia menghasilkan warning; kegagalan identitas Git atau penyimpanan menghasilkan exit non-zero.
+
+## Memasang Git hook otomatis
+
+Jalankan dari root atau subdirektori repository Git:
+
+```sh
+wl install-hooks
+# Alias
+wl install-hook
+```
+
+Installer memasang `post-commit` pada directory hook default Git, termasuk repository yang belum memiliki commit. Output menampilkan repository dan path hook. Install tidak membuat konfigurasi/database atau menjalankan capture. Pada commit berikutnya, wrapper menjalankan:
+
+```sh
+wl git >/dev/null 2>&1 || true
+```
+
+Pastikan `wl` ada pada `PATH` proses Git, termasuk bila commit dilakukan dari editor/GUI. Output capture dibuang; kegagalan capture atau executable yang tidak tersedia tidak membatalkan commit. Capture manual dengan `wl git` tetap tersedia.
+
+Hook existing berupa regular file disalin utuh ke sibling `post-commit.wlog-original`, dengan permission rwx yang sama. Hook original yang executable dijalankan sebelum capture; output dan exit statusnya dipertahankan. Original nonexecutable disimpan tanpa dijalankan. Karena original dijalankan dari nama backup, hook yang bergantung pada `$0`/basename perlu integrasi manual.
+
+Install ulang wrapper valid menampilkan `already installed` tanpa menggandakan capture. Permission executable yang hilang diperbaiki tanpa mengubah isi wrapper. Default hook linked worktree digunakan bersama seluruh worktree repository; scope ini ditampilkan pada output.
+
+`core.hooksPath` yang disetel, symlink/nonregular hook, backup reserved yang berbenturan dengan instalasi baru, dan wrapper/backup managed yang dimodifikasi ditolak dengan error. Untuk custom hook manager/path, tambahkan pemanggilan capture di atas secara manual pada hook yang dikelola. Installer tidak mengubah konfigurasi Git.
+
+Instalasi memakai lock dan publish atomik. Lock stale atau file recovery yang tersisa setelah crash perlu diperiksa manual melalui path pada error. Lock mengoordinasikan installer `wl`; perubahan oleh editor lain yang terdeteksi membatalkan instalasi, tetapi editor tersebut tetap dapat berlomba setelah pemeriksaan terakhir.
 
 ## Menjalankan dari source
 
@@ -179,5 +205,5 @@ go vet ./...
 
 ## Status fitur
 
-- Tersedia: inisialisasi CLI/local storage, pengelolaan tiket di layer application/storage, start/stop session, note aktivitas, dan Git commit capture.
-- Pemasangan Git hook, summary, description, dan koreksi waktu sesi belum tersedia.
+- Tersedia: inisialisasi CLI/local storage, pengelolaan tiket di layer application/storage, start/stop session, note aktivitas, Git commit capture, dan pemasangan Git hook.
+- Summary, description, dan koreksi waktu sesi belum tersedia.

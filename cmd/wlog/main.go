@@ -8,12 +8,14 @@ import (
 
 	applicationactivity "github.com/taupikpirdian/wlog/application/activity"
 	"github.com/taupikpirdian/wlog/application/bootstrap"
+	applicationhook "github.com/taupikpirdian/wlog/application/hook"
 	applicationsession "github.com/taupikpirdian/wlog/application/session"
 	"github.com/taupikpirdian/wlog/delivery/cli"
 	"github.com/taupikpirdian/wlog/domain/ticket"
 	"github.com/taupikpirdian/wlog/infrastructure/configfile"
 	"github.com/taupikpirdian/wlog/infrastructure/gitcapture"
 	"github.com/taupikpirdian/wlog/infrastructure/gitcontext"
+	"github.com/taupikpirdian/wlog/infrastructure/githook"
 	"github.com/taupikpirdian/wlog/infrastructure/storage"
 )
 
@@ -25,10 +27,19 @@ func main() {
 		storage.NewSQLiteInitializer(),
 	)
 	root := cli.NewRootCommand(initializer, version, openSessions, openNotes, openGitCaptures)
+	root.AddCommand(cli.NewInstallHooksCommand(openHooks))
 	if err := root.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+}
+
+func openHooks(context.Context) (cli.HookInstaller, error) {
+	directory, err := os.Getwd()
+	if err != nil {
+		return nil, err
+	}
+	return applicationhook.NewService(githook.NewInspector(directory), githook.NewStore()), nil
 }
 
 func openGitCaptures(ctx context.Context) (cli.GitCaptureService, func() error, error) {
