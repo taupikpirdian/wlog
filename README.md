@@ -23,7 +23,7 @@ These examples use demo data and show output from the CLI.
 
 ![Animated CLI demo: install the post-commit hook, commit with automatic capture, dashboard, start session, add a note, stop session, and review the daily timeline](docs/images/workflow.gif)
 
-The demo installs `wl install-hooks` once in a temporary repository, then makes a real commit. The local Git `post-commit` hook captures it automatically, so no manual `wl git` command is needed. With no active session, the commit appears under **Unsessioned** on the dashboard. The demo then starts a session, adds a note, stops it, and reviews the timeline. The demo clock advances between steps; commits and notes do not add tracked time. Automatic hook installation is available on macOS, Linux, and WSL; `wl` must be on Git's `PATH`.
+The demo installs `wl install-hooks` once in a temporary repository, then makes a real commit. The local Git `post-commit` hook captures it automatically, so no manual `wl git` command is needed. With no active session, the commit appears under **Unsessioned** on the dashboard. The demo then starts a session, adds a note, stops it, and reviews the timeline. The demo clock advances between steps; commits and notes do not add tracked time. Automatic hook installation is available on macOS, Linux, and WSL; the installer records the binary's absolute path so commits from terminals and editors can use it.
 
 **Dashboard — active session and daily totals**
 
@@ -273,7 +273,7 @@ Check the current repository's integration alongside the work dashboard:
 wl status
 ```
 
-The status shows the repository and whether its managed `post-commit` hook is installed. If it is missing, it suggests `wl install-hooks`; if executable permissions are missing, it suggests the same command to repair them. Modified or conflicting hooks and custom `core.hooksPath` settings are reported as unverified. Outside a Git worktree, when Git is unavailable, or on unsupported platforms, the dashboard still appears with an explanation that hook status is unavailable. Checking status does not install or modify hooks.
+The status shows the repository and whether its managed `post-commit` hook is installed, along with the capture executable's path. If it is missing, it suggests `wl install-hooks`; if executable permissions are missing, it suggests the same command to repair them. Legacy hooks that depend on Git's `PATH` display a suggestion to upgrade using `wl install-hooks`. Modified or conflicting hooks and custom `core.hooksPath` settings are reported as unverified. Outside a Git worktree, when Git is unavailable, or on unsupported platforms, the dashboard still appears with an explanation that hook status is unavailable. Checking status does not install or modify hooks.
 
 Run `wl install-hooks` once in each repository where you want automatic capture. Other repositories remain unaffected; linked worktrees sharing the same default hooks directory share the installation.
 
@@ -285,19 +285,19 @@ wl install-hooks
 wl install-hook
 ```
 
-The installer places a `post-commit` hook in Git's default hook directory, including for repositories with no commits yet. Output shows the repository and hook path. Installation does not create configuration or a database, or perform a capture. On subsequent commits, the wrapper runs:
+The installer places a `post-commit` hook in Git's default hook directory, including for repositories with no commits yet. Output shows the repository, hook path, and capture executable. Installation does not create configuration or a database, or perform a capture. The hook records the absolute path of the binary running `wl install-hooks`. For a binary installed at `/Users/example/.local/bin/wl`, subsequent commits run:
 
 ```sh
-wl git >/dev/null 2>&1 || true
+'/Users/example/.local/bin/wl' git >/dev/null 2>&1 || true
 ```
 
-Make sure `wl` is on the Git process's `PATH`, including when committing from an editor or GUI. Capture output is discarded; capture failures or a missing executable do not cancel the commit. Manual capture with `wl git` remains available.
+Run the installer using your permanently installed binary, rather than `go run` or a temporary build. Commits from terminals and editors such as VS Code use that binary without requiring `~/.local/bin` on the editor's `PATH`. Git must still be available to the hook. Keep the binary at the recorded location; if you move it, rerun `wl install-hooks` using the new binary. Capture output is discarded; capture failures or a missing executable do not cancel the commit. Manual capture with `wl git` remains available and captures only the current HEAD commit.
 
 An existing hook that is a regular file is copied intact to the sibling file `post-commit.wlog-original`, preserving its read, write, and execute permissions. An executable original hook runs before capture, retaining its output and exit status. A nonexecutable original is preserved without being run. Because the original runs from its backup filename, hooks that depend on `$0` or their basename require manual integration.
 
-Reinstalling a valid wrapper displays `already installed` without duplicating capture. Missing executable permissions are repaired without changing the wrapper's contents. Default hooks for linked worktrees are shared across the repository's worktrees; this scope is shown in the output.
+Reinstalling a valid wrapper displays `already installed` without duplicating capture. Rerunning the installer upgrades an intact legacy wrapper to use the installed binary's absolute path, or updates the path after moving the binary, while preserving the existing original-hook backup. Missing executable permissions are repaired. Default hooks for linked worktrees are shared across the repository's worktrees; this scope is shown in the output.
 
-A configured `core.hooksPath`, symlink or nonregular hook, reserved backup that conflicts with a new installation, or modified managed wrapper or backup is rejected with an error. For a custom hook manager or path, manually add the capture command above to the hook you manage. The installer does not change Git configuration.
+A configured `core.hooksPath`, symlink or nonregular hook, reserved backup that conflicts with a new installation, or modified managed wrapper or backup is rejected with an error. For a custom hook manager or path, manually add the capture command above to the hook you manage, using your binary's actual absolute path. The installer does not change Git configuration.
 
 Installation uses a lock and atomic publication. Stale locks or recovery files left after a crash require manual inspection using the paths shown in the error. The lock coordinates `wl` installers; detected changes by another editor abort installation, but that editor may still race with installation after the final check.
 

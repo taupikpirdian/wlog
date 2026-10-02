@@ -18,14 +18,20 @@ type Result struct {
 	Location    domain.Location
 	Status      string
 	HasOriginal bool
+	Executable  string
 }
 type Service struct {
-	inspector Inspector
-	store     Store
+	inspector  Inspector
+	store      Store
+	executable string
 }
 
 func NewService(inspector Inspector, store Store) *Service {
 	return &Service{inspector: inspector, store: store}
+}
+
+func NewServiceWithExecutable(inspector Inspector, store Store, executable string) *Service {
+	return &Service{inspector: inspector, store: store, executable: executable}
 }
 
 func (s *Service) Install(ctx context.Context) (Result, error) {
@@ -42,9 +48,11 @@ func (s *Service) Install(ctx context.Context) (Result, error) {
 	if err := ctx.Err(); err != nil {
 		return Result{}, err
 	}
-	plan, err := s.store.Apply(ctx, location, domain.PlanInstall)
+	plan, err := s.store.Apply(ctx, location, func(snapshot domain.Snapshot) (domain.Plan, error) {
+		return domain.PlanInstallWithExecutable(snapshot, s.executable)
+	})
 	if err != nil {
 		return Result{}, fmt.Errorf("install hook %q: %w", location.HookPath, err)
 	}
-	return Result{Location: location, Status: plan.Status, HasOriginal: plan.HasOriginal}, nil
+	return Result{Location: location, Status: plan.Status, HasOriginal: plan.HasOriginal, Executable: plan.Executable}, nil
 }

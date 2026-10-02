@@ -55,6 +55,9 @@ func renderHookStatus(result application.Result) (string, error) {
 	switch result.Status {
 	case domain.Installed:
 		b.WriteString("Git hook: installed (automatic commit capture)\n")
+		if result.Executable == "" {
+			b.WriteString("Legacy hook depends on Git's PATH. Run wl install-hooks to enable capture from editors using the installed binary path.\n")
+		}
 	case application.NotInstalled:
 		b.WriteString("Git hook: not installed\nRun wl install-hooks in this repository to enable automatic commit capture.\n")
 	case application.NeedsRepair:
@@ -68,6 +71,9 @@ func renderHookStatus(result application.Result) (string, error) {
 	}
 	if result.Location.HookPath != "" {
 		fmt.Fprintf(&b, "Hook: %s\n", safeText(result.Location.HookPath))
+	}
+	if result.Executable != "" {
+		fmt.Fprintf(&b, "Capture executable: %s\n", safeText(result.Executable))
 	}
 	if result.Location.Shared {
 		b.WriteString("Scope: all worktrees sharing this repository's default hooks directory.\n")

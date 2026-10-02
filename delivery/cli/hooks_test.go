@@ -22,7 +22,7 @@ func (f fakeHookInstaller) Install(context.Context) (application.Result, error) 
 
 func TestInstallHooksAliasesAndOutcomes(t *testing.T) {
 	for _, alias := range []string{"install-hooks", "install-hook"} {
-		for _, status := range []string{domain.Installed, domain.AlreadyInstalled, domain.Repaired} {
+		for _, status := range []string{domain.Installed, domain.AlreadyInstalled, domain.Repaired, domain.Updated} {
 			t.Run(alias+"/"+status, func(t *testing.T) {
 				root := NewRootCommand(nil, "test", nil, nil)
 				root.AddCommand(NewInstallHooksCommand(func(context.Context) (HookInstaller, error) {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
 	applicationactivity "github.com/taupikpirdian/wlog/application/activity"
@@ -71,7 +72,15 @@ func openHooks(context.Context) (cli.HookInstaller, error) {
 	if err != nil {
 		return nil, err
 	}
-	return applicationhook.NewService(githook.NewInspector(directory), githook.NewStore()), nil
+	executable, err := os.Executable()
+	if err != nil {
+		return nil, err
+	}
+	executable, err = filepath.EvalSymlinks(executable)
+	if err != nil {
+		return nil, err
+	}
+	return applicationhook.NewServiceWithExecutable(githook.NewInspector(directory), githook.NewStore(), executable), nil
 }
 
 func openHookStatus(context.Context) (cli.HookStatusReader, error) {

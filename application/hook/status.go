@@ -60,6 +60,7 @@ func (s *StatusService) Status(ctx context.Context) (Result, error) {
 		return result, nil
 	}
 	result.HasOriginal = plan.HasOriginal
+	result.Executable = plan.Executable
 	switch plan.Status {
 	case domain.AlreadyInstalled:
 		result.Status = domain.Installed

@@ -39,6 +39,8 @@ func NewInstallHooksCommand(open HookFactory) *cobra.Command {
 				title = "✓ Git integration already installed"
 			case domain.Repaired:
 				title = "✓ Git hook executable permission repaired"
+			case domain.Updated:
+				title = "✓ Git integration updated"
 			default:
 				return errors.New("hook installer returned an unknown outcome")
 			}
@@ -60,7 +62,11 @@ func NewInstallHooksCommand(open HookFactory) *cobra.Command {
 					return err
 				}
 			}
-			_, err = fmt.Fprintln(cmd.OutOrStdout(), "\nCommits will automatically be captured when wl is available on the Git process PATH.")
+			if result.Executable != "" {
+				_, err = fmt.Fprintf(cmd.OutOrStdout(), "\nCapture executable: %s\nCommits from terminals and editors will use this executable without requiring wl on PATH.\n", safeText(result.Executable))
+			} else {
+				_, err = fmt.Fprintln(cmd.OutOrStdout(), "\nCommits will automatically be captured when wl is available on the Git process PATH.")
+			}
 			return err
 		},
 	}
