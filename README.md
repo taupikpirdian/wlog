@@ -2,6 +2,18 @@
 
 `wl` is a local CLI for tracking developer work sessions by ticket, using a SQLite database and local configuration.
 
+## Features
+
+- **Dashboard** — View the active session, elapsed time, and today's tracked time per ticket with `wl`.
+- **Daily timeline** — Review `START`, `NOTE`, `COMMIT`, and `STOP` events in chronological order with `wl today`.
+- **Work sessions** — Start and stop ticket-based sessions with `wl start` / `wl s` and `wl stop` / `wl x`.
+- **Manual time entry** — Add completed sessions with `wl session --from --to --title`, or backdate an active session with `wl s --since`; overlapping ranges are rejected.
+- **Activity notes** — Record investigation details and other work on the active session with `wl note` / `wl n`.
+- **Git commit capture** — Capture the latest commit, ticket association, changed files, and line statistics with `wl git`, with duplicate capture prevention.
+- **Automatic Git hooks** — Install automatic post-commit capture with `wl install-hooks` on macOS, Linux, or WSL.
+- **Local storage** — Automatically initialize SQLite storage and configuration; reuse tickets across sessions and repositories.
+- **Windows build support** — Build the core CLI as `wl.exe` for Windows x64; runtime verification on Windows is pending.
+
 ## Prerequisites
 
 - Go 1.22 or later
@@ -286,27 +298,3 @@ ai:
 ```
 
 Existing values are preserved when `wl` is run again. `capture_full_diff` and `include_diff` are disabled by default.
-
-## Unit Tests and Coverage
-
-Every package with executable code in `application` and `domain` has unit tests with **100% statement coverage**. Root packages containing only `doc.go` have no measurable statements.
-
-Run unit tests for both layers and generate a coverage report:
-
-```sh
-go test -race -coverprofile=coverage.out ./application/... ./domain/...
-go tool cover -func=coverage.out
-go tool cover -html=coverage.out
-```
-
-Run regression tests across the project:
-
-```sh
-go test -race ./...
-go vet ./...
-```
-
-## Feature Status
-
-- Available: CLI and local storage initialization, ticket management in the application and storage layers, session start and stop, activity notes, Git commit capture, Git hook installation, dashboard, today's timeline, manual completed sessions, and backdated starts.
-- Summary, description, session editing or deletion, and manual ranges for historical dates are not yet available.
