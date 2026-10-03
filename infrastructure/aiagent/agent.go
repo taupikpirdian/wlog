@@ -1,4 +1,4 @@
-// Package aiagent adapts noninteractive local AI CLIs to the summary contract.
+// Package aiagent adapts noninteractive local AI CLIs to summary JSON and ticket Markdown.
 package aiagent
 
 import (
@@ -81,12 +81,45 @@ func (a *commandAgent) Capabilities() application.AICapabilities {
 }
 
 func (a *commandAgent) Generate(ctx context.Context, request application.AIRequest, progress application.ProgressHandler) (*application.AIResponse, error) {
+	if request.Context.TicketOnly {
+		return nil, fmt.Errorf("ticket generation requires GenerateTicket, not the summary JSON contract")
+	}
 	prompt, err := application.BuildAIPrompt(request)
 	if err != nil {
 		return nil, err
 	}
+	body, err := a.run(ctx, request, prompt, application.ResponseSchema, progress)
+	if err != nil {
+		return nil, err
+	}
+	return application.ParseAIResponse(body)
+}
+
+func (a *commandAgent) GenerateTicket(ctx context.Context, request application.AIRequest, progress application.ProgressHandler) (*application.GeneratedTicket, error) {
+	request.Context.TicketOnly = true
+	prompt, err := application.BuildTicketPrompt(request)
+	if err != nil {
+		return nil, err
+	}
+	body, err := a.run(ctx, request, prompt, "", progress)
+	if err != nil {
+		return nil, err
+	}
+	ticket := &application.GeneratedTicket{Content: string(body)}
+	if err := application.ValidateGeneratedTicket(ticket); err != nil {
+		return nil, err
+	}
+	return ticket, nil
+}
+
+func (a *commandAgent) run(ctx context.Context, request application.AIRequest, prompt, responseSchema string, progress application.ProgressHandler) ([]byte, error) {
 	if !filepath.IsAbs(request.WorkingDirectory) {
 		return nil, fmt.Errorf("AI working directory must be an explicit absolute path")
+	}
+	for _, repo := range request.Context.Repositories {
+		if !filepath.IsAbs(repo.Path) {
+			return nil, fmt.Errorf("AI repository path must be an explicit absolute path: %s", repo.Path)
+		}
 	}
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Minute)
 	defer cancel()
@@ -121,13 +154,17 @@ func (a *commandAgent) Generate(ctx context.Context, request application.AIReque
 			return nil, err
 		}
 		defer os.RemoveAll(directory)
-		schema := filepath.Join(directory, "schema.json")
-		if err := os.WriteFile(schema, []byte(application.ResponseSchema), 0600); err != nil {
-			return nil, err
-		}
-		outputFile = filepath.Join(directory, "response.json")
+		outputFile = filepath.Join(directory, "response.txt")
 		args = append([]string{"exec"}, args...)
-		args = append(args, "--sandbox", "read-only", "--ephemeral", "--skip-git-repo-check", "--color", "never", "--json", "--output-schema", schema, "--output-last-message", outputFile, "-")
+		args = append(args, "--sandbox", "read-only", "--ephemeral", "--skip-git-repo-check", "--color", "never", "--json")
+		if responseSchema != "" {
+			schema := filepath.Join(directory, "schema.json")
+			if err := os.WriteFile(schema, []byte(responseSchema), 0600); err != nil {
+				return nil, err
+			}
+			args = append(args, "--output-schema", schema)
+		}
+		args = append(args, "--output-last-message", outputFile, "-")
 		parser = &codexEventParser{sink: sink}
 	case "claude":
 		tools := "Read,Grep,Glob,Bash"
@@ -136,16 +173,27 @@ func (a *commandAgent) Generate(ctx context.Context, request application.AIReque
 			tools += ",Skill"
 			allowed += ",Skill(ticket-generator)"
 		}
-		args = append(args, "--print", "--output-format", "stream-json", "--verbose", "--json-schema", application.ResponseSchema, "--permission-mode", "plan", "--tools", tools, "--allowedTools", allowed, "--no-session-persistence")
-		parser = &claudeEventParser{sink: sink}
+		if request.Context.TicketOnly {
+			allowed += ",Bash(git -C * diff *),Bash(git -C * show *),Bash(git -C * log *),Bash(git -C * cat-file *)"
+			if request.Skill.Loaded && filepath.IsAbs(request.Skill.Path) {
+				args = append(args, "--add-dir", filepath.Dir(request.Skill.Path))
+			}
+			for _, repo := range request.Context.Repositories {
+				if repo.Path != request.WorkingDirectory {
+					args = append(args, "--add-dir", repo.Path)
+				}
+			}
+		}
+		args = append(args, "--print", "--output-format", "stream-json", "--verbose", "--permission-mode", "plan", "--tools", tools, "--allowedTools", allowed, "--no-session-persistence")
+		if responseSchema != "" {
+			args = append(args, "--json-schema", responseSchema)
+		}
+		parser = &claudeEventParser{sink: sink, markdown: responseSchema == ""}
 	case "opencode":
 		args = append([]string{"run"}, args...)
 		args = append(args, "--format", "json", "--agent", "plan")
 		// v1 plan-agent permissions: source inspection only. No auto-approval.
-		permission := `{"agent":{"plan":{"permission":{"*":"deny","read":"allow","glob":"allow","grep":"allow","bash":{"*":"deny","git diff *":"allow","git show *":"allow","git log *":"allow","git cat-file *":"allow"}}}}}`
-		if request.Skill.Loaded && request.Skill.Native {
-			permission = strings.Replace(permission, `"read":"allow"`, `"read":"allow","skill":{"*":"deny","ticket-generator":"allow"}`, 1)
-		}
+		permission := openCodePermissions(request)
 		filtered := env[:0]
 		for _, item := range env {
 			if !strings.HasPrefix(item, "OPENCODE_CONFIG_CONTENT=") {
@@ -162,7 +210,7 @@ func (a *commandAgent) Generate(ctx context.Context, request application.AIReque
 			}
 		}
 		if a.config.Progress.Mode == "jsonl" {
-			parser = &customEventParser{sink: sink}
+			parser = &customEventParser{sink: sink, markdown: responseSchema == ""}
 		}
 	}
 	process := ProcessRequest{Command: a.config.Command, Args: args, Dir: request.WorkingDirectory, Env: env, Input: input}
@@ -205,5 +253,5 @@ func (a *commandAgent) Generate(ctx context.Context, request application.AIReque
 			return nil, fmt.Errorf("AI provider response failed: %s", application.SafeDiagnostics(err.Error(), secrets))
 		}
 	}
-	return application.ParseAIResponse(body)
+	return body, nil
 }

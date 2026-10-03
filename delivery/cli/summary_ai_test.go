@@ -93,18 +93,40 @@ func (g *cliGitFake) Change(context.Context, string, string) (application.CodeCh
 }
 
 type cliAgentFake struct {
-	calls   int
-	request application.AIRequest
+	calls                     int
+	summaryCalls, ticketCalls int
+	ticketContent             *string
+	request                   application.AIRequest
 }
 
 func (a *cliAgentFake) Capabilities() application.AICapabilities { return application.AICapabilities{} }
 func (a *cliAgentFake) Generate(_ context.Context, request application.AIRequest, progress application.ProgressHandler) (*application.AIResponse, error) {
 	a.calls++
+	a.summaryCalls++
 	a.request = request
 	if progress != nil {
 		progress(application.ProgressEvent{Provider: "codex", Type: application.ProgressTool, Message: "Running git diff", RepositoryPath: request.WorkingDirectory})
 	}
 	return &application.AIResponse{Worklog: application.WorklogText{Details: []string{"AI detail"}, Results: []string{"AI result"}}, TicketDescription: application.TicketDescription{Background: "Background", ProblemRequirement: "Requirement", Scope: []string{"Scope"}, ExpectedResult: "Expected"}}, nil
+}
+
+const skillTicketFixture = "# [FEATURE] Ticket title\n\n## Description\nRecorded implementation.\n\n## Goal\nExpected behavior.\n\n## In Scope\n- Validation\n\n## QA Impact\n| No | Area | Yang dicek | Expected | Dikerjakan oleh |\n|----|------|-----------|----------|-----------------|\n| 1 | Validation | Input kosong | Ditolak | QA Engineer |\n\n## Acceptance Criteria\n- Reject invalid input\n"
+
+func (a *cliAgentFake) GenerateTicket(_ context.Context, request application.AIRequest, progress application.ProgressHandler) (*application.GeneratedTicket, error) {
+	a.calls++
+	a.ticketCalls++
+	a.request = request
+	if progress != nil {
+		progress(application.ProgressEvent{Provider: "codex", Type: application.ProgressTool, Message: "Running git diff", RepositoryPath: request.WorkingDirectory})
+	}
+	content := "# Ticket title\n\n### Background\nRecorded context\n\n### Scope\n- Validation\n"
+	if request.Skill.Loaded {
+		content = skillTicketFixture
+	}
+	if a.ticketContent != nil {
+		content = *a.ticketContent
+	}
+	return &application.GeneratedTicket{Content: content}, nil
 }
 
 type cliFactoryFake struct {

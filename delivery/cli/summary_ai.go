@@ -103,7 +103,7 @@ func runAIGeneration(cmd *cobra.Command, input *bufio.Reader, reader SummaryRead
 	}
 	plain := func() error {
 		if ticketOnly {
-			return errors.New("Jira ticket generation cancelled; configure an AI agent with wl config ai and retry")
+			return errors.New("Jira ticket generation cancelled")
 		}
 		result, err := reader.TicketSummary(cmd.Context(), date, key)
 		if err != nil {
@@ -174,20 +174,21 @@ func runAIGeneration(cmd *cobra.Command, input *bufio.Reader, reader SummaryRead
 		if _, err := fmt.Fprintln(cmd.ErrOrStderr(), "\nSource-code context is unavailable."); err != nil {
 			return err
 		}
-		worklogsOnly, err = askYesNo(input, cmd.ErrOrStderr(), "Generate AI summary using worklogs only?", false)
+		worklogsOnly, err = askYesNo(input, cmd.ErrOrStderr(), "Generate AI "+artifact+" using worklogs only?", false)
 		if err != nil {
 			return err
 		}
 		if !worklogsOnly {
 			return plain()
 		}
-		if _, err := fmt.Fprintln(cmd.ErrOrStderr(), "AI will generate the summary using available worklog context only."); err != nil {
+		if _, err := fmt.Fprintf(cmd.ErrOrStderr(), "AI will generate the %s using available worklog context only.\n", artifact); err != nil {
 			return err
 		}
 	}
 	var result application.AIResult
+	var ticket application.GeneratedTicket
 	if ticketOnly {
-		result, err = application.GenerateTicketAI(ctx, value, config.AI, options.Agents, worklogsOnly, config.DataDirectory, options.Skills, progress)
+		ticket, err = application.GenerateTicketAI(ctx, value, config.AI, options.Agents, worklogsOnly, config.DataDirectory, options.Skills, progress)
 	} else {
 		result, err = application.GenerateAI(ctx, value, config.AI, options.Agents, worklogsOnly, config.DataDirectory, progress)
 	}
@@ -207,7 +208,7 @@ func runAIGeneration(cmd *cobra.Command, input *bufio.Reader, reader SummaryRead
 		return err
 	}
 	if ticketOnly {
-		_, err = fmt.Fprint(cmd.OutOrStdout(), formatTicketDescription(result.Response.TicketDescription))
+		_, err = fmt.Fprint(cmd.OutOrStdout(), ticket.Content)
 		return err
 	}
 	_, err = fmt.Fprint(cmd.OutOrStdout(), formatAISummary(result))

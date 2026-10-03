@@ -36,6 +36,7 @@ func main() {
 	aiOptions := cli.SummaryAIOptions{Config: configfile.NewLoader(), Git: gitevidence.NewService(), Agents: aiagent.NewFactory(), Skills: aiskills.NewResolver()}
 	root.AddCommand(cli.NewSummaryCommand(summaryFactory(configfile.NewLoader(), time.Now, time.Local), aiOptions))
 	root.AddCommand(cli.NewConfigCommand(aiOptions.Config))
+	root.AddCommand(cli.NewSkillsCommand(aiOptions.Config, aiOptions.Skills))
 	root.AddCommand(cli.NewGenerateTicketCommand(summaryFactory(configfile.NewLoader(), time.Now, time.Local), aiOptions))
 	cli.AddManualSessionCommands(root, manualSessionFactory(configfile.NewLoader(), time.Now, time.Local, gitcontext.Current))
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)

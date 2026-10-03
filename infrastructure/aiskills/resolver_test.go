@@ -68,7 +68,7 @@ func TestSkillAvailabilityReadingAndFallback(t *testing.T) {
 				t.Fatalf("reads=%d progress=%s", reads, output)
 			}
 			if tc.readFails {
-				if value.Loaded || !strings.Contains(output, "Failed to read") || !strings.Contains(output, "Falling back") {
+				if value.Loaded || !strings.Contains(output, "Failed to load") || !strings.Contains(output, "Using built-in wlog ticket generator") {
 					t.Fatalf("skill=%+v progress=%s", value, output)
 				}
 				return
@@ -79,7 +79,7 @@ func TestSkillAvailabilityReadingAndFallback(t *testing.T) {
 			if tc.provider == "custom" && value.Instructions != body {
 				t.Fatal("full custom instructions were not loaded")
 			}
-			if tc.provider == "codex" && (value.Instructions != "" || !value.Native || value.Invocation != "$ticket-generator" || !strings.Contains(output, "will be requested") || strings.Contains(output, "skill loaded")) {
+			if tc.provider == "codex" && (value.Instructions != "" || !value.Native || value.Invocation != "$ticket-generator" || !strings.Contains(output, "will be requested") || !strings.Contains(output, "skill loaded by wlog")) {
 				t.Fatalf("native skill falsely marked as agent-loaded: %+v %s", value, output)
 			}
 		})
@@ -125,5 +125,29 @@ func TestReadSkillRejectsEmptyLargeAndNonregularFiles(t *testing.T) {
 	}
 	if _, err := readSkill(t.TempDir()); err == nil {
 		t.Fatal("directory accepted as instructions")
+	}
+}
+
+func TestSkillInInvocationDirectoryIsReadOutsideTicketRepository(t *testing.T) {
+	for _, provider := range []string{"codex", "claude", "opencode", "custom"} {
+		t.Run(provider, func(t *testing.T) {
+			cwd, repo, home := t.TempDir(), t.TempDir(), t.TempDir()
+			path := filepath.Join(cwd, ".agents", "skills", "ticket-generator", "SKILL.md")
+			if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(path, []byte("FULL INSTALLED SKILL\nPreserve title and QA Impact."), 0600); err != nil {
+				t.Fatal(err)
+			}
+			reads := 0
+			resolver := &Resolver{home: func() (string, error) { return home, nil }, cwd: func() (string, error) { return cwd, nil }, readFile: func(path string) ([]byte, error) { reads++; return readSkill(path) }}
+			skill, err := resolver.Resolve(context.Background(), provider, repo, nil)
+			if err != nil || !skill.Loaded || skill.Path != path || reads != 1 || len(skill.CheckedPaths) == 0 {
+				t.Fatalf("skill=%+v reads=%d error=%v", skill, reads, err)
+			}
+			if repo == filepath.Dir(path) {
+				t.Fatal("test must keep source repository independent from skill location")
+			}
+		})
 	}
 }

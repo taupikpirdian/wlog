@@ -27,10 +27,13 @@ func TestAIPromptUsesSelectedLanguage(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			for _, required := range []string{"output_language: " + tc.code, "prose in " + tc.name, "overrides any skill language default", "Preserve JSON field names, Jira headings, code identifiers, and factual metadata"} {
+			for _, required := range []string{"output_language: " + tc.code, "prose in " + tc.name, "overrides any skill language default"} {
 				if !strings.Contains(prompt, required) {
 					t.Fatalf("ticketOnly=%v language=%q: missing %q", ticketOnly, tc.language, required)
 				}
+			}
+			if ticketOnly && (!strings.Contains(prompt, "Follow the skill's language rules for headings") || strings.Contains(prompt, "Preserve JSON field names, Jira headings")) {
+				t.Fatal("ticket language must follow skill formatting rules")
 			}
 			if tc.language == application.LanguageEnglish && (strings.Contains(prompt, "output_language: id") || strings.Contains(prompt, "Use Indonesian for the generated prose")) {
 				t.Fatal("English prompt contains conflicting Indonesian instructions")

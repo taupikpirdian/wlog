@@ -10,8 +10,10 @@ import (
 // Custom JSONL: info/status/warning/tool/file observable events and a final
 // {"type":"result","data":{...summary contract...}} on stdout.
 type customEventParser struct {
-	sink   eventSink
-	result []byte
+	sink       eventSink
+	markdown   bool
+	result     []byte
+	resultSeen bool
 }
 
 func (p *customEventParser) Consume(line []byte) error {
@@ -34,13 +36,22 @@ func (p *customEventParser) Consume(line []byte) error {
 	case "file":
 		p.sink.emit(application.ProgressFile, "", "read", event.Path)
 	case "result":
-		p.result = append([]byte(nil), event.Data...)
+		p.resultSeen = true
+		if p.markdown {
+			var content string
+			if err := json.Unmarshal(event.Data, &content); err != nil {
+				return fmt.Errorf("Custom JSONL ticket result.data must contain a Markdown string")
+			}
+			p.result = []byte(content)
+		} else {
+			p.result = append([]byte(nil), event.Data...)
+		}
 	}
 	return nil
 }
 func (p *customEventParser) Result() ([]byte, error) {
-	if len(p.result) == 0 {
-		return nil, fmt.Errorf("Custom JSONL agent produced no result event")
+	if len(p.result) == 0 && !(p.markdown && p.resultSeen) {
+		return nil, fmt.Errorf("Custom JSONL agent failed to produce a result event")
 	}
 	return p.result, nil
 }

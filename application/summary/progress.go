@@ -8,6 +8,7 @@ const (
 	ProgressFile    ProgressEventType = "file"
 	ProgressWarning ProgressEventType = "warning"
 	ProgressStatus  ProgressEventType = "status"
+	ProgressSuccess ProgressEventType = "success"
 )
 
 // An empty Provider identifies application actions; a provider name identifies

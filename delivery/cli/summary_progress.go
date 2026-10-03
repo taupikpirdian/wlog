@@ -57,6 +57,9 @@ func (r *ProgressRenderer) Render(event application.ProgressEvent) {
 		r.lastStatus = ""
 	}
 	prefix := "→ "
+	if event.Type == application.ProgressSuccess {
+		prefix = "✓ "
+	}
 	if event.Provider != "" {
 		prefix = "[" + providerLabel(event.Provider) + "] "
 		if event.Type == application.ProgressTool || event.Type == application.ProgressFile {

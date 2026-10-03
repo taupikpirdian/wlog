@@ -20,6 +20,7 @@ const fixtureResponse = `{"worklog":{"details":["Changed code"],"results":[]},"t
 
 type processRecord struct {
 	Directory, Input, GitDirectory string
+	OpenCodeConfig                 string
 	Args                           []string
 }
 
@@ -30,7 +31,7 @@ func TestAgentHelper(t *testing.T) {
 	}
 	input, _ := io.ReadAll(os.Stdin)
 	directory, _ := os.Getwd()
-	record, _ := json.Marshal(processRecord{Directory: directory, Input: string(input), GitDirectory: os.Getenv("GIT_DIR"), Args: os.Args})
+	record, _ := json.Marshal(processRecord{Directory: directory, Input: string(input), GitDirectory: os.Getenv("GIT_DIR"), OpenCodeConfig: os.Getenv("OPENCODE_CONFIG_CONTENT"), Args: os.Args})
 	_ = os.WriteFile(os.Getenv("WLOG_AI_RECORD"), record, 0600)
 	for _, line := range strings.Split(os.Getenv("WLOG_AI_STDERR"), "\n") {
 		if line != "" {
@@ -61,7 +62,11 @@ func TestAgentHelper(t *testing.T) {
 		}
 		fmt.Println("diagnostic output is not the final response")
 	case "claude":
-		_ = json.NewEncoder(os.Stdout).Encode(map[string]any{"type": "result", "is_error": false, "structured_output": json.RawMessage(body)})
+		if os.Getenv("WLOG_AI_ARTIFACT") == "ticket" {
+			_ = json.NewEncoder(os.Stdout).Encode(map[string]any{"type": "result", "is_error": false, "result": body})
+		} else {
+			_ = json.NewEncoder(os.Stdout).Encode(map[string]any{"type": "result", "is_error": false, "structured_output": json.RawMessage(body)})
+		}
 	case "opencode":
 		_ = json.NewEncoder(os.Stdout).Encode(map[string]any{"type": "step_start"})
 		_ = json.NewEncoder(os.Stdout).Encode(map[string]any{"type": "text", "part": map[string]string{"text": body[:len(body)/2]}})
@@ -71,7 +76,11 @@ func TestAgentHelper(t *testing.T) {
 			fmt.Println(`{"type":"status","message":"Repository inspected"}`)
 			fmt.Println(`{"type":"tool","name":"git","command":"git diff aaa..bbb"}`)
 			fmt.Println(`{"type":"reasoning","message":"PRIVATE THINKING"}`)
-			_ = json.NewEncoder(os.Stdout).Encode(map[string]any{"type": "result", "data": json.RawMessage(body)})
+			if os.Getenv("WLOG_AI_ARTIFACT") == "ticket" {
+				_ = json.NewEncoder(os.Stdout).Encode(map[string]any{"type": "result", "data": body})
+			} else {
+				_ = json.NewEncoder(os.Stdout).Encode(map[string]any{"type": "result", "data": json.RawMessage(body)})
+			}
 		} else {
 			fmt.Print(body)
 		}

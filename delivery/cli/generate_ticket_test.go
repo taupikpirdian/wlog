@@ -25,6 +25,7 @@ func (s *skillsStub) Resolve(_ context.Context, _ string, _ string, progress app
 	if s.found {
 		progress(application.ProgressEvent{Type: application.ProgressInfo, Message: "Found skill: ticket-generator"})
 		progress(application.ProgressEvent{Type: application.ProgressInfo, Message: "Reading ticket-generator skill instructions"})
+		progress(application.ProgressEvent{Type: application.ProgressSuccess, Message: "ticket-generator skill loaded by wlog"})
 		return application.TicketSkill{Name: "ticket-generator", Path: "/skills/ticket-generator/SKILL.md", Loaded: true, Native: true, Invocation: "$ticket-generator"}, nil
 	}
 	progress(application.ProgressEvent{Type: application.ProgressWarning, Message: "ticket-generator skill not found"})
@@ -60,7 +61,7 @@ func TestGenerateTicketAliasUsesIdenticalFlow(t *testing.T) {
 				if err := root.Execute(); err != nil {
 					t.Fatal(err)
 				}
-				if agent.calls != 1 || skills.calls != 1 || !agent.request.Context.TicketOnly || agent.request.Skill.Loaded != found {
+				if agent.calls != 1 || agent.ticketCalls != 1 || agent.summaryCalls != 0 || skills.calls != 1 || !agent.request.Context.TicketOnly || agent.request.Skill.Loaded != found {
 					t.Fatalf("agent=%d skills=%d request=%+v", agent.calls, skills.calls, agent.request)
 				}
 				if reader.weekCalls != 1 || reader.dailyCalls != 0 || reader.descriptionCalls != 1 || !agent.request.Context.Summary.Day.Date.IsZero() {
@@ -72,13 +73,19 @@ func TestGenerateTicketAliasUsesIdenticalFlow(t *testing.T) {
 				if agent.request.Context.OutputLanguage != language || !strings.Contains(progress.String(), "Select output language:") {
 					t.Fatalf("language=%q progress=%q", agent.request.Context.OutputLanguage, progress.String())
 				}
-				if !strings.HasPrefix(out.String(), "### Background\n") || strings.Contains(out.String(), "Time:") || strings.Contains(out.String(), "Checking installed") {
+				if !strings.HasPrefix(out.String(), "# ") || strings.Contains(out.String(), "Time:") || strings.Contains(out.String(), "Checking installed") {
 					t.Fatalf("wrong Jira output: %q", out.String())
+				}
+				if found && (out.String() != skillTicketFixture || strings.Contains(out.String(), "### Background") || !strings.Contains(progress.String(), "✓ ticket-generator skill loaded by wlog")) {
+					t.Fatalf("skill artifact or progress changed: %q %q", out.String(), progress.String())
+				}
+				if !found && !strings.Contains(out.String(), "### Background") {
+					t.Fatal("built-in fallback output lost")
 				}
 				if !strings.Contains(progress.String(), "✓ Jira ticket generated.") {
 					t.Fatalf("progress=%q", progress.String())
 				}
-				if check, start := strings.Index(progress.String(), "Checking installed AI skills"), strings.Index(progress.String(), "starting codex"); check < 0 || start < check {
+				if check, start := strings.Index(progress.String(), "Checking installed AI skills"), strings.Index(progress.String(), "Starting codex"); check < 0 || start < check {
 					t.Fatalf("skill check must precede AI analysis: %q", progress.String())
 				}
 				outputs = append(outputs, out.String())
@@ -89,6 +96,27 @@ func TestGenerateTicketAliasUsesIdenticalFlow(t *testing.T) {
 				t.Fatal("alias changed generation behavior")
 			}
 		}
+	}
+}
+
+func TestGenerateTicketPreservesSkillOmissionOfQAImpact(t *testing.T) {
+	content := "# [REFACTOR] Internal rename\n\n## Description\nNo QA impact — internal change, no observable behavior change.\n\n## In Scope\n- Rename internal helper\n"
+	reader := &enhancedSummaryStub{value: application.TicketAIContext{AllTicketWorklogs: dashboard.Snapshot{Activities: []dashboard.Activity{{Type: "GIT_COMMIT", Repository: "/database/repo", Hash: "aaa"}}}}}
+	config := &configMemory{config: bootstrap.Config{AI: bootstrap.AIConfig{Enabled: true, Provider: "codex"}}}
+	agent := &cliAgentFake{ticketContent: &content}
+	cmd := NewGenerateTicketCommand(func(context.Context) (SummaryReader, func() error, error) {
+		return reader, func() error { return nil }, nil
+	}, SummaryAIOptions{Config: config, Git: &cliGitFake{}, Agents: &cliFactoryFake{agent: agent}, Skills: &skillsStub{found: true}})
+	var output, progress bytes.Buffer
+	cmd.SetOut(&output)
+	cmd.SetErr(&progress)
+	cmd.SetIn(strings.NewReader("1\n1\n"))
+	cmd.SetArgs([]string{})
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	if output.String() != content || strings.Contains(output.String(), "## QA Impact") {
+		t.Fatalf("skill artifact modified: %q", output.String())
 	}
 }
 
@@ -119,7 +147,7 @@ func TestGenerateTicketHelpIncludesAlias(t *testing.T) {
 	if err := cmd.Execute(); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(out.String(), "generate-ticket, gt") || !strings.Contains(out.String(), "Generate Jira ticket description from recorded worklogs and code changes") {
+	if !strings.Contains(out.String(), "generate-ticket, gt") || !strings.Contains(out.String(), "Generate Jira ticket from recorded worklogs and code changes") {
 		t.Fatalf("help=%q", out.String())
 	}
 }

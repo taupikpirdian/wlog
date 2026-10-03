@@ -18,9 +18,12 @@ const maxSkillBytes = 256 * 1024
 type Resolver struct {
 	home     func() (string, error)
 	readFile func(string) ([]byte, error)
+	cwd      func() (string, error)
 }
 
-func NewResolver() *Resolver { return &Resolver{home: os.UserHomeDir, readFile: readSkill} }
+func NewResolver() *Resolver {
+	return &Resolver{home: os.UserHomeDir, readFile: readSkill, cwd: os.Getwd}
+}
 
 func readSkill(path string) ([]byte, error) {
 	file, err := os.Open(path)
@@ -61,11 +64,27 @@ func (r *Resolver) Resolve(ctx context.Context, provider, directory string, prog
 	home, err := r.home()
 	if err != nil {
 		emit(application.ProgressWarning, "Failed to resolve installed AI skills")
-		emit(application.ProgressInfo, "Using built-in wlog ticket-generation instructions")
+		emit(application.ProgressInfo, "Using built-in wlog ticket generator")
 		return application.TicketSkill{}, nil
 	}
 	paths, native := skillPaths(provider, directory, home)
+	// Invocation-directory skills are independent of the database repository
+	// used for Git evidence. This lets wl gt see a locally installed wlog skill.
+	if r.cwd != nil {
+		if cwd, err := r.cwd(); err == nil {
+			local, _ := skillPaths(provider, cwd, home)
+			local = append(local, filepath.Join(cwd, ".agents", "skills", "ticket-generator", "SKILL.md"))
+			paths = append(paths, local...)
+		}
+	}
+	seen := map[string]bool{}
+	var checked []string
 	for _, path := range paths {
+		if seen[path] {
+			continue
+		}
+		seen[path] = true
+		checked = append(checked, path)
 		if err := ctx.Err(); err != nil {
 			return application.TicketSkill{}, err
 		}
@@ -76,14 +95,14 @@ func (r *Resolver) Resolve(ctx context.Context, provider, directory string, prog
 		emit(application.ProgressInfo, "Reading ticket-generator skill instructions")
 		body, err := r.readFile(path)
 		if err != nil {
-			emit(application.ProgressWarning, "Failed to read ticket-generator skill instructions")
-			emit(application.ProgressInfo, "Falling back to built-in wlog ticket-generation instructions")
-			return application.TicketSkill{}, nil
+			emit(application.ProgressWarning, "Failed to load ticket-generator skill")
+			emit(application.ProgressInfo, "Using built-in wlog ticket generator")
+			return application.TicketSkill{Name: "ticket-generator", CheckedPaths: checked, FailureReason: err.Error()}, nil
 		}
 		if err := ctx.Err(); err != nil {
 			return application.TicketSkill{}, err
 		}
-		value := application.TicketSkill{Name: "ticket-generator", Path: path, Loaded: true, Native: native}
+		value := application.TicketSkill{Name: "ticket-generator", Path: path, Loaded: true, Native: native, CheckedPaths: checked}
 		switch provider {
 		case "codex":
 			value.Invocation = "$ticket-generator"
@@ -95,17 +114,17 @@ func (r *Resolver) Resolve(ctx context.Context, provider, directory string, prog
 		if native {
 			// wlog verified the complete file, but does not claim the agent has
 			// read it. The provider must load it using its native mechanism.
-			emit(application.ProgressStatus, "ticket-generator instructions verified by wlog")
+			emit(application.ProgressSuccess, "ticket-generator skill loaded by wlog")
 			emit(application.ProgressInfo, "ticket-generator will be requested during AI generation")
 		} else {
 			value.Instructions = string(body)
-			emit(application.ProgressStatus, "ticket-generator skill loaded by wlog")
+			emit(application.ProgressSuccess, "ticket-generator skill loaded by wlog")
 		}
 		return value, nil
 	}
 	emit(application.ProgressWarning, "ticket-generator skill not found")
-	emit(application.ProgressInfo, "Using built-in wlog ticket-generation instructions")
-	return application.TicketSkill{}, nil
+	emit(application.ProgressInfo, "Using built-in wlog ticket generator")
+	return application.TicketSkill{Name: "ticket-generator", CheckedPaths: checked, FailureReason: "skill not found in checked locations"}, nil
 }
 
 func skillPaths(provider, directory, home string) ([]string, bool) {

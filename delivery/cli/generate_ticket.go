@@ -10,7 +10,7 @@ import (
 // Cobra aliases route to this same command and RunE, not another implementation.
 func NewGenerateTicketCommand(open SummaryFactory, options SummaryAIOptions) *cobra.Command {
 	return &cobra.Command{
-		Use: "generate-ticket", Aliases: []string{"gt"}, Short: "Generate Jira ticket description from recorded worklogs and code changes (alias: gt)", Args: cobra.NoArgs,
+		Use: "generate-ticket", Aliases: []string{"gt"}, Short: "Generate Jira ticket from recorded worklogs and code changes (alias: gt)", Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) (resultErr error) {
 			reader, close, err := open(cmd.Context())
 			if err != nil {

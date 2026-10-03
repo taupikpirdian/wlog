@@ -178,15 +178,9 @@ func GenerateAI(ctx context.Context, value TicketAIContext, config bootstrap.AIC
 	if len(progress) > 0 {
 		handler = progress[0]
 	}
-	return generateAI(ctx, value, config, factory, worklogsOnly, fallbackDirectory, nil, handler)
-}
-
-func GenerateTicketAI(ctx context.Context, value TicketAIContext, config bootstrap.AIConfig, factory AIAgentFactory, worklogsOnly bool, fallbackDirectory string, skills TicketSkillResolver, progress ProgressHandler) (AIResult, error) {
-	value.TicketOnly = true
-	return generateAI(ctx, value, config, factory, worklogsOnly, fallbackDirectory, skills, progress)
-}
-
-func generateAI(ctx context.Context, value TicketAIContext, config bootstrap.AIConfig, factory AIAgentFactory, worklogsOnly bool, fallbackDirectory string, skills TicketSkillResolver, handler ProgressHandler) (AIResult, error) {
+	if value.TicketOnly {
+		return AIResult{}, errors.New("ticket generation requires GenerateTicketAI, not the summary JSON contract")
+	}
 	language, err := ResolveOutputLanguage(value.OutputLanguage)
 	if err != nil {
 		return AIResult{}, err
@@ -200,19 +194,9 @@ func generateAI(ctx context.Context, value TicketAIContext, config bootstrap.AIC
 		return AIResult{}, err
 	}
 	var responses []AIResponse
-	resolveSkill := func(directory string) (TicketSkill, error) {
-		if skills == nil {
-			return TicketSkill{}, nil
-		}
-		return skills.Resolve(ctx, config.Provider, directory, handler)
-	}
 	if len(value.Repositories) == 0 {
-		skill, err := resolveSkill(fallbackDirectory)
-		if err != nil {
-			return AIResult{}, err
-		}
 		emitProgress(handler, ProgressEvent{Type: ProgressStatus, Message: "Starting " + config.Provider})
-		response, err := agent.Generate(ctx, AIRequest{Context: value, WorkingDirectory: fallbackDirectory, WorklogsOnly: true, Skill: skill}, handler)
+		response, err := agent.Generate(ctx, AIRequest{Context: value, WorkingDirectory: fallbackDirectory, WorklogsOnly: true}, handler)
 		if err != nil {
 			return AIResult{}, err
 		}
@@ -225,10 +209,6 @@ func generateAI(ctx context.Context, value TicketAIContext, config bootstrap.AIC
 	} else {
 		for i := range value.Repositories {
 			repo := value.Repositories[i]
-			skill, err := resolveSkill(repo.Path)
-			if err != nil {
-				return AIResult{}, err
-			}
 			emitProgress(handler, ProgressEvent{Type: ProgressStatus, RepositoryPath: repo.Path, Message: fmt.Sprintf("Repository %d/%d: starting %s", i+1, len(value.Repositories), config.Provider)})
 			for _, change := range repo.Changes {
 				rangeText := change.Start + ".." + change.End
@@ -237,18 +217,14 @@ func generateAI(ctx context.Context, value TicketAIContext, config bootstrap.AIC
 				}
 				emitProgress(handler, ProgressEvent{Type: ProgressInfo, RepositoryPath: repo.Path, Message: "Commit range: " + rangeText})
 			}
-			response, err := agent.Generate(ctx, AIRequest{Context: value, Repository: &repo, WorkingDirectory: repo.Path, Skill: skill}, handler)
+			response, err := agent.Generate(ctx, AIRequest{Context: value, Repository: &repo, WorkingDirectory: repo.Path}, handler)
 			if err != nil {
 				return AIResult{}, fmt.Errorf("AI generation for %s: %w", repo.Path, err)
 			}
 			if err := ValidateAIResponse(response); err != nil {
 				return AIResult{}, err
 			}
-			if value.TicketOnly {
-				response.Worklog.EnvironmentVariables = nil
-			} else {
-				response.Worklog.EnvironmentVariables = environmentVariablesWithEvidence(response.Worklog.EnvironmentVariables, repo)
-			}
+			response.Worklog.EnvironmentVariables = environmentVariablesWithEvidence(response.Worklog.EnvironmentVariables, repo)
 			responses = append(responses, *response)
 			emitProgress(handler, ProgressEvent{Type: ProgressStatus, RepositoryPath: repo.Path, Message: "Repository analysis completed"})
 		}

@@ -158,7 +158,7 @@ func TestTicketContextSeparatesSelectedDayAndWholeTicket(t *testing.T) {
 }
 func timePtr(t time.Time) *time.Time { return &t }
 
-func TestTicketPromptUsesSkillBeforeAnalysisWithoutReplacingWlogFormat(t *testing.T) {
+func TestTicketPromptFollowsSkillWithoutForcingWlogFormat(t *testing.T) {
 	for _, native := range []bool{true, false} {
 		skill := application.TicketSkill{Name: "ticket-generator", Path: "/skills/ticket-generator/SKILL.md", Loaded: true, Native: native, Invocation: "$ticket-generator"}
 		if !native {
@@ -168,12 +168,17 @@ func TestTicketPromptUsesSkillBeforeAnalysisWithoutReplacingWlogFormat(t *testin
 		if err != nil {
 			t.Fatal(err)
 		}
-		for _, text := range []string{"read its skill instructions completely enough", "BEFORE analyzing code changes", "Use the skill's methodology", "application format overrides", "output_language: id", "Do not invent a branch"} {
+		for _, text := range []string{"Read the ticket-generator skill instructions before analyzing code changes", "source of truth for title and ticket structure", "QA Impact", "Do NOT convert", "output_language: id", "Do not invent base_branch/doc_path"} {
 			if !strings.Contains(prompt, text) {
 				t.Fatalf("missing instruction %q", text)
 			}
 		}
-		if native && (!strings.Contains(prompt, "Native skill requested: $ticket-generator") || strings.Contains(prompt, "TICKET-GENERATOR INSTRUCTIONS (read fully")) {
+		for _, excluded := range []string{application.ResponseSchema, "### Background", "### Problem / Requirement", "### Scope", "### Expected Result", "### Technical Notes"} {
+			if strings.Contains(prompt, excluded) {
+				t.Fatalf("skill prompt forces legacy structure: %q", excluded)
+			}
+		}
+		if native && (!strings.Contains(prompt, "Native skill requested: $ticket-generator") || strings.Contains(prompt, "TICKET-GENERATOR INSTRUCTIONS (read completely")) {
 			t.Fatal("native skill should be requested, not pasted")
 		}
 		if !native && !strings.Contains(prompt, skill.Instructions) {
@@ -181,11 +186,11 @@ func TestTicketPromptUsesSkillBeforeAnalysisWithoutReplacingWlogFormat(t *testin
 		}
 	}
 	prompt, _ := application.BuildAIPrompt(application.AIRequest{Context: application.TicketAIContext{TicketOnly: true}})
-	if !strings.Contains(prompt, "Wlog did not load ticket-generator") || !strings.Contains(prompt, "built-in") {
+	if !strings.Contains(prompt, "NO TICKET-GENERATOR SKILL WAS LOADED") || !strings.Contains(prompt, "built-in") || !strings.Contains(prompt, "### Background") || strings.Contains(prompt, application.ResponseSchema) {
 		t.Fatal("missing fallback instructions")
 	}
 	prompt, _ = application.BuildAIPrompt(application.AIRequest{})
-	if strings.Contains(prompt, "TICKET GENERATION WORKFLOW OVERRIDE") {
+	if strings.Contains(prompt, "TICKET-GENERATOR IS ACTIVE") {
 		t.Fatal("summary prompt changed")
 	}
 }
@@ -199,7 +204,7 @@ func TestTicketPromptHasNoSelectedDateScope(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, required := range []string{"There is NO selected date", "not the scope of the ticket description", "Previous week analysis", "Current week implementation"} {
+	for _, required := range []string{"There is NO selected date", "not the scope of generation", "Previous week analysis", "Current week implementation"} {
 		if !strings.Contains(prompt, required) {
 			t.Fatalf("missing ticket-wide instruction %q", required)
 		}

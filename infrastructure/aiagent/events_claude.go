@@ -8,9 +8,11 @@ import (
 )
 
 type claudeEventParser struct {
-	sink      eventSink
-	result    []byte
-	resultErr error
+	sink       eventSink
+	markdown   bool
+	result     []byte
+	resultErr  error
+	resultSeen bool
 }
 
 func (p *claudeEventParser) Consume(line []byte) error {
@@ -43,12 +45,15 @@ func (p *claudeEventParser) Consume(line []byte) error {
 			}
 		}
 	case "result":
+		p.resultSeen = true
 		if event.IsError {
 			p.resultErr = fmt.Errorf("Claude generation failed: %s", event.Result)
 			p.sink.emit(application.ProgressWarning, "Generation failed", "", "")
 			return nil
 		}
-		if len(event.Structured) > 0 {
+		if p.markdown {
+			p.result = []byte(event.Result)
+		} else if len(event.Structured) > 0 {
 			p.result = append([]byte(nil), event.Structured...)
 		} else {
 			p.result = []byte(event.Result)
@@ -62,8 +67,8 @@ func (p *claudeEventParser) Result() ([]byte, error) {
 	if p.resultErr != nil {
 		return nil, p.resultErr
 	}
-	if len(p.result) == 0 {
-		return nil, fmt.Errorf("Claude produced no final structured result")
+	if len(p.result) == 0 && !(p.markdown && p.resultSeen) {
+		return nil, fmt.Errorf("Claude failed to produce a final result")
 	}
 	return p.result, nil
 }

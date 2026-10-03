@@ -29,6 +29,14 @@ func (c *integrationConfig) SaveAI(_ context.Context, ai bootstrap.AIConfig) err
 
 type integrationAgent struct{ requests []application.AIRequest }
 
+func (a *integrationAgent) GenerateTicket(_ context.Context, request application.AIRequest, progress application.ProgressHandler) (*application.GeneratedTicket, error) {
+	a.requests = append(a.requests, request)
+	for _, repo := range request.Context.Repositories {
+		progress(application.ProgressEvent{Provider: "custom", Type: application.ProgressTool, RepositoryPath: repo.Path, Message: "Inspecting supplied diff"})
+	}
+	return &application.GeneratedTicket{Content: "# Recorded ticket title\n\n### Background\nRecorded changes\n\n### Scope\n- Update value\n"}, nil
+}
+
 func (a *integrationAgent) Capabilities() application.AICapabilities {
 	return application.AICapabilities{SupportsEventStream: true}
 }
@@ -193,12 +201,17 @@ func TestAISummaryReadsDatabaseRepositoriesOutsideCurrentDirectory(t *testing.T)
 	if err := root.Execute(); err != nil {
 		t.Fatal(err)
 	}
-	if len(agent.requests) != 2 || strings.Contains(progress.String(), "Choose date") || !strings.Contains(progress.String(), "OOT-1") || !strings.Contains(progress.String(), "2h") || !strings.HasPrefix(out.String(), "### Background\n") {
+	if len(agent.requests) != 1 || strings.Contains(progress.String(), "Choose date") || !strings.Contains(progress.String(), "OOT-1") || !strings.Contains(progress.String(), "2h") || !strings.HasPrefix(out.String(), "# Recorded ticket title\n") {
 		t.Fatalf("weekly ticket generation: requests=%+v output=%q progress=%q", agent.requests, out.String(), progress.String())
 	}
 	for _, request := range agent.requests {
-		if !request.Context.TicketOnly || !request.Context.Summary.Day.Date.IsZero() || request.Context.OutputLanguage != application.LanguageEnglish || len(request.Context.AllTicketWorklogs.Sessions) != 2 {
+		if !request.Context.TicketOnly || !request.Context.Summary.Day.Date.IsZero() || request.Context.OutputLanguage != application.LanguageEnglish || len(request.Context.AllTicketWorklogs.Sessions) != 2 || len(request.Context.Repositories) != 2 {
 			t.Fatalf("incorrect ticket-wide context: %+v", request)
+		}
+		for _, repo := range request.Context.Repositories {
+			if repo.Path == directory || len(repo.Changes) != 1 || !strings.Contains(repo.Changes[0].Diff, "+const Value = 2") || strings.Contains(repo.Changes[0].Diff, "999") {
+				t.Fatalf("incorrect recorded source evidence: %+v", repo)
+			}
 		}
 	}
 }
