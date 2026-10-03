@@ -3,7 +3,6 @@ package summary_test
 import (
 	"context"
 	"encoding/json"
-	"reflect"
 	"strings"
 	"testing"
 
@@ -16,7 +15,7 @@ func responseWithEnvironment(names []string) string {
 	return strings.Replace(validResponse, `"results":[]`, `"results":[],"environment_variables":`+string(encoded), 1)
 }
 
-func TestNewEnvironmentVariablesRequireSelectedDateCommitEvidence(t *testing.T) {
+func TestAICannotDetermineEnvironmentChanges(t *testing.T) {
 	factory := &fakeFactory{agent: &fakeAgent{body: responseWithEnvironment([]string{
 		"NEW_ENV", "NEW_ENV", "SECOND_ENV", "EXISTING_ENV", "CONTEXT_ENV", "REMOVED_ENV", "ANOTHER_DATE", "GHOST_ENV", "NAME", "INVENTED_ENV",
 	})}}
@@ -31,8 +30,8 @@ func TestNewEnvironmentVariablesRequireSelectedDateCommitEvidence(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := []string{"NEW_ENV", "SECOND_ENV"}; !reflect.DeepEqual(result.Response.Worklog.EnvironmentVariables, want) {
-		t.Fatalf("names=%v want=%v", result.Response.Worklog.EnvironmentVariables, want)
+	if len(result.Response.Worklog.EnvironmentVariables) != 0 {
+		t.Fatal("AI must not determine environment changes")
 	}
 	if factory.agent.requests[0].WorkingDirectory != "/repoA" || factory.agent.requests[1].WorkingDirectory != "/repoB" {
 		t.Fatal("environment analysis lost recorded repository scope")
@@ -81,7 +80,7 @@ func TestEnvironmentInstructionsAndStructuredSchema(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, required := range []string{"NEW ENVIRONMENT VARIABLES", "worklog.environment_variables", "recorded start/parent revision", "Names only", "changed values/defaults", "Return [] when no new variables are supported"} {
+	for _, required := range []string{"ENVIRONMENT CHANGES", "environment_changes", "authoritative", "base and end revisions", "Environment Changes section", "failed/incomplete"} {
 		if !strings.Contains(prompt, required) {
 			t.Fatalf("missing instruction %q", required)
 		}
@@ -91,7 +90,7 @@ func TestEnvironmentInstructionsAndStructuredSchema(t *testing.T) {
 		t.Fatal(err)
 	}
 	properties := schema["properties"].(map[string]any)["worklog"].(map[string]any)["properties"].(map[string]any)
-	if properties["environment_variables"] == nil {
-		t.Fatal("native structured schema lacks environment variables")
+	if properties["environment_variables"] != nil {
+		t.Fatal("AI schema must not ask AI to detect environment variables")
 	}
 }

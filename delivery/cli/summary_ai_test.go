@@ -240,30 +240,7 @@ func TestAIFormatterControlledFactsAndBullets(t *testing.T) {
 	result := application.AIResult{Context: application.TicketAIContext{TicketKey: "OOT-1", Summary: application.Result{Day: domain.Day{Date: time.Date(2026, 10, 2, 0, 0, 0, 0, time.UTC), Seconds: 7200}, Email: "real@example.com"}}, Response: application.AIResponse{Worklog: application.WorklogText{Details: []string{"Change", "Change"}, Results: []string{}}, TicketDescription: application.TicketDescription{Background: "Background", ProblemRequirement: "Requirement", Scope: []string{"Change"}, ExpectedResult: "Expected", TechnicalNotes: ""}}}
 	got := formatAISummary(result)
 	want := "Time:\n2h\n\nDetail:\n- Change\n\nHasil:\n-\n\nDev By:\nreal@example.com\n\n### Background\nBackground\n\n### Problem / Requirement\nRequirement\n\n### Scope\n- Change\n\n### Expected Result\nExpected\n"
-	if got != want {
+	if got != want+"\n### Environment Changes\n\nEnvironment variable check could not be completed.\n" {
 		t.Fatalf("got=%q want=%q", got, want)
-	}
-}
-
-func TestAIFormatterNewEnvironmentSection(t *testing.T) {
-	for _, tc := range []struct {
-		language application.OutputLanguage
-		label    string
-	}{
-		{application.LanguageIndonesian, "Env Baru"},
-		{application.LanguageEnglish, "New Environment Variables"},
-	} {
-		result := application.AIResult{
-			Context:  application.TicketAIContext{OutputLanguage: tc.language, Summary: application.Result{Day: domain.Day{Seconds: 7200}, Email: "dev@example.com"}},
-			Response: application.AIResponse{Worklog: application.WorklogText{Details: []string{"Configure service"}, Results: []string{}, EnvironmentVariables: []string{"API_TOKEN", "AUTH_URL", "API_TOKEN"}}},
-		}
-		got := formatAISummary(result)
-		if !strings.Contains(got, "\n"+tc.label+":\n- API_TOKEN\n- AUTH_URL\n\nDev By:\ndev@example.com") || strings.Count(got, "- API_TOKEN\n") != 1 || !strings.Contains(got, "Time:\n2h") {
-			t.Fatalf("summary=%q", got)
-		}
-		result.Response.Worklog.EnvironmentVariables = nil
-		if got := formatAISummary(result); strings.Contains(got, tc.label) {
-			t.Fatalf("empty environment section shown: %q", got)
-		}
 	}
 }

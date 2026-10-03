@@ -224,7 +224,9 @@ func GenerateAI(ctx context.Context, value TicketAIContext, config bootstrap.AIC
 			if err := ValidateAIResponse(response); err != nil {
 				return AIResult{}, err
 			}
-			response.Worklog.EnvironmentVariables = environmentVariablesWithEvidence(response.Worklog.EnvironmentVariables, repo)
+			// Legacy provider field is ignored: only the application detector
+			// determines environment changes.
+			response.Worklog.EnvironmentVariables = nil
 			responses = append(responses, *response)
 			emitProgress(handler, ProgressEvent{Type: ProgressStatus, RepositoryPath: repo.Path, Message: "Repository analysis completed"})
 		}

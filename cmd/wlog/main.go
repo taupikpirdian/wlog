@@ -11,6 +11,7 @@ import (
 	applicationactivity "github.com/taupikpirdian/wlog/application/activity"
 	"github.com/taupikpirdian/wlog/application/bootstrap"
 	applicationdashboard "github.com/taupikpirdian/wlog/application/dashboard"
+	applicationenvironment "github.com/taupikpirdian/wlog/application/environment"
 	applicationhook "github.com/taupikpirdian/wlog/application/hook"
 	applicationsession "github.com/taupikpirdian/wlog/application/session"
 	applicationsummary "github.com/taupikpirdian/wlog/application/summary"
@@ -19,6 +20,7 @@ import (
 	"github.com/taupikpirdian/wlog/infrastructure/aiagent"
 	"github.com/taupikpirdian/wlog/infrastructure/aiskills"
 	"github.com/taupikpirdian/wlog/infrastructure/configfile"
+	"github.com/taupikpirdian/wlog/infrastructure/envdetect"
 	"github.com/taupikpirdian/wlog/infrastructure/gitcapture"
 	"github.com/taupikpirdian/wlog/infrastructure/gitcontext"
 	"github.com/taupikpirdian/wlog/infrastructure/gitevidence"
@@ -61,7 +63,10 @@ func summaryFactory(loader bootstrap.ConfigLoader, now func() time.Time, locatio
 		if err != nil {
 			return nil, nil, err
 		}
-		return applicationsummary.NewService(storage.NewSQLiteDashboardStore(db), gitcontext.NewEmailReader(directory), now, location), db.Close, nil
+		git := gitevidence.NewService()
+		detector := &applicationenvironment.Detector{Git: git, Extractors: envdetect.DefaultExtractors()}
+		check := applicationsummary.NewEnvironmentCheck(git, detector)
+		return applicationsummary.NewService(storage.NewSQLiteDashboardStore(db), gitcontext.NewEmailReader(directory), now, location, check), db.Close, nil
 	}
 }
 

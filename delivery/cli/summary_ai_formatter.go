@@ -34,16 +34,9 @@ func formatAISummary(result application.AIResult) string {
 	writeSummaryBullets(&b, result.Response.Worklog.Details)
 	b.WriteString("\nHasil:\n")
 	writeSummaryBullets(&b, result.Response.Worklog.Results)
-	if len(result.Response.Worklog.EnvironmentVariables) > 0 {
-		label := "Env Baru"
-		if result.Context.OutputLanguage == application.LanguageEnglish {
-			label = "New Environment Variables"
-		}
-		fmt.Fprintf(&b, "\n%s:\n", label)
-		writeSummaryBullets(&b, result.Response.Worklog.EnvironmentVariables)
-	}
 	fmt.Fprintf(&b, "\nDev By:\n%s\n\n", email)
 	b.WriteString(formatTicketDescription(result.Response.TicketDescription))
+	b.WriteString(formatEnvironmentChanges(result.Context.Summary.EnvironmentChanges))
 	return b.String()
 }
 

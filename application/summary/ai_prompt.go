@@ -38,11 +38,8 @@ const summaryTaskPrompt = `Generate:
 Keep wording concise and engineering-focused. Merge duplicate activities. Avoid generic wording such as coding/development/fixing issue. Do not invent results; worklog.results may be [] when no result is supported.
 Background must be conservative when business context is limited. Problem / Requirement should describe the observed technical problem. Scope must match evidence. Expected Result describes expected behavior, not deployment. Technical Notes include only observed facts.
 For per-repository analysis, describe ONLY this repository's code changes; use the other recorded worklogs as supporting context only. The application combines repository results.
-NEW ENVIRONMENT VARIABLES:
-Inspect selected-date Git changes for newly introduced environment variable names in .env templates, configuration bindings/env tags, environment lookups, and deployment configuration. Compare with the recorded start/parent revision and surrounding implementation when tools allow it.
-Return these exact literal names in worklog.environment_variables. Include only names explicitly present in added lines of changes marked SelectedDate=true for this repository. Merge duplicates. Do not invent or infer names from prefixes, worklogs, notes, or commit messages.
-Do not list changed values/defaults of existing variables, removals, new uses of existing names, ordinary constants, or unrelated documentation mentions as new environment variables. Only report additions related to the selected ticket.
-Names only: never include values, assignments, defaults, or credentials. Preserve spelling/case and do not translate identifiers. Return [] when no new variables are supported or source code is unavailable.
+ENVIRONMENT CHANGES:
+The application's environment_changes structured result is authoritative. Detection compares recorded base and end revisions independently of AI. Do not infer additional environment names, values, or successful checks. Do not override a failed/incomplete status. Keep the Environment Changes section: the application appends it deterministically using these factual results. Do not duplicate that section in your prose or JSON. The legacy worklog.environment_variables field must be [] if present. Do not read runtime .env files, secret values, or environment/configuration values from repositories; use the names-only application result. Configuration-file diff contents are omitted from this prompt to avoid disclosing values.
 Return ONLY valid JSON matching this schema, no Markdown fence, preamble, or extra fields:
 `
 
@@ -61,7 +58,7 @@ func BuildAIPrompt(request AIRequest) (string, error) {
 	context, err := json.MarshalIndent(struct {
 		Context    TicketAIContext
 		Repository *RepositoryAIContext
-	}{value, request.Repository}, "", "  ")
+	}{value, namesOnlyEnvironmentEvidence(request.Repository)}, "", "  ")
 	if err != nil {
 		return "", err
 	}

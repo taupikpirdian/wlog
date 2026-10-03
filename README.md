@@ -252,9 +252,31 @@ ai:
 
 Custom agents receive the strict prompt on stdin unless an argument includes `{{prompt}}`. Arguments are passed directly to the executable, without shell interpretation. Custom agents must return only valid JSON matching the summary contract: `worklog.details`, `worklog.results`, and `ticket_description` with `background`, `problem_requirement`, `scope`, `expected_result`, and optional `technical_notes`. Details, scope, background, problem, and expected result must be nonempty; results may be `[]` when no outcome is supported. Factual fields such as duration, email, ticket, and date are excluded from the AI response. Invalid output produces an explicit error rather than a malformed summary.
 
-AI summaries also check the recorded selected-date commit diffs for newly introduced environment variables in configuration templates, bindings, environment lookups, and deployment settings. The agent returns exact names in `worklog.environment_variables` (or `[]` when none are supported); older custom responses that omit this field remain compatible. The application checks that each name occurs in added lines of a selected-date diff and is absent from removed/context lines in that diff, then sorts and deduplicates names across repositories. The prompt asks the agent to compare the recorded parent revision to distinguish new variables from existing variables or changed defaults. Unsupported names and worklogs-only claims are omitted.
+### Environment Changes
 
-When new variables are found, the worklog includes an **Env Baru** section (**New Environment Variables** for English) between Hasil and Dev By. It lists names only, without values or credentials. If no new variables are supported, the section is omitted. Non-AI summary formatting is unchanged.
+Every `wl summary`, including non-AI generation and AI fallbacks, appends one mandatory `### Environment Changes` section. Detection belongs to the application, not the AI. It reads immutable blobs at the selected date/ticket's captured commit ranges using the recorded repository paths; it never substitutes current HEAD or the current directory's unrelated changes.
+
+Candidates come from changed files at the end revision. They are compared with environment names in all supported files at the base revision, so refactors, renames, additional uses, and changed defaults do not create new variables. Names are deduplicated and sorted. Existing `.env.example`, `.env.sample`, `.env.template`, and `example.env` files at the end revision are checked for missing names; absence of a template is allowed.
+
+Built-in extractors support Go `os.Getenv`/`LookupEnv`; JavaScript/TypeScript `process.env`, `Bun.env`, and `Deno.env.get`; Python `os.getenv`/`os.environ`; PHP/Laravel `getenv`, `env`, `$_ENV`, and `$_SERVER`; Java/Kotlin `System.getenv` and literal Spring `@Value`/uppercase `environment.getProperty`; .NET `Environment.GetEnvironmentVariable`; Ruby `ENV`/`fetch`; Rust `std::env::var`/`var_os`; shell declarations; Docker `ENV`/`ARG`/`RUN` references; Compose environment maps/lists; Kubernetes env entries and locally resolvable ConfigMap/Secret `envFrom`; and environment template assignments. Generic .NET `configuration["NAME"]` is accepted only for an explicit environment-only `ConfigurationBuilder().AddEnvironmentVariables().Build()` assigned to `configuration` in the same file. GitHub Actions and GitLab CI variables are listed separately as CI-only.
+
+```text
+### Environment Changes
+
+New environment variables:
+- API_BASE_URL
+- CLIENT_ID
+
+Missing from environment template:
+- CLIENT_ID
+```
+
+A successful empty check prints `No new environment variables detected.` Failed or partial checks print `Environment variable check could not be completed.` Partial checks retain names proven by the available ranges, and never report a successful empty check. Missing captured ranges are unavailable evidence, not proof that no variables were added.
+
+Only names enter the structured detector result, final output, and AI environment context. Configuration diffs are omitted from the summary AI prompt to avoid sending environment values. The old AI `worklog.environment_variables` field remains compatible but is ignored. Other source-code changes remain the implementation evidence.
+
+Detection is static and conservative: dynamically assembled names, aliases, indirect configuration providers, external ConfigMaps/Secrets, shell locals/references without declarations, and unrendered configuration templates cannot always be resolved. Unresolved `envFrom` and parsing/read failures make the check incomplete. Git reads are bounded to 256 KiB per blob/command, revision scans to 2,048 supported files or 8 MiB, and checks to 128 ranges. Dependency trees (`vendor`, `node_modules`) are excluded. Add extractors through `DefaultExtractors` or inject them into the detector without changing the summary command.
+
 
 The AI output contains the Jira Worklog block followed by the Markdown Jira Ticket Description. Worklog scope is the selected date and ticket; ticket description uses all recorded evidence for that ticket. The application formats both outputs and supplies Time and Dev By itself.
 

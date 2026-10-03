@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/taupikpirdian/wlog/domain/dashboard"
+	environment "github.com/taupikpirdian/wlog/domain/environment"
 	domain "github.com/taupikpirdian/wlog/domain/summary"
 )
 
@@ -15,22 +16,36 @@ type EmailReader interface {
 	Email(context.Context) (string, error)
 }
 type Result struct {
-	Day   domain.Day
-	Email string
+	Day                domain.Day
+	Email              string
+	EnvironmentChanges environment.Changes `json:"environment_changes"`
 }
+type EnvironmentCheck func(context.Context, TicketAIContext) environment.Changes
 type Reader interface {
 	Week(context.Context) ([]domain.Day, error)
 	Summary(context.Context, time.Time) (Result, error)
 }
 type service struct {
-	store    SnapshotStore
-	email    EmailReader
-	now      func() time.Time
-	location *time.Location
+	store            SnapshotStore
+	email            EmailReader
+	now              func() time.Time
+	location         *time.Location
+	checkEnvironment EnvironmentCheck
 }
 
-func NewService(store SnapshotStore, email EmailReader, now func() time.Time, location *time.Location) TicketReader {
-	return &service{store: store, email: email, now: now, location: location}
+func NewService(store SnapshotStore, email EmailReader, now func() time.Time, location *time.Location, checks ...EnvironmentCheck) TicketReader {
+	s := &service{store: store, email: email, now: now, location: location}
+	if len(checks) > 0 {
+		s.checkEnvironment = checks[0]
+	}
+	return s
+}
+
+func (s *service) environment(ctx context.Context, value TicketAIContext) environment.Changes {
+	if s.checkEnvironment != nil {
+		return s.checkEnvironment(ctx, value)
+	}
+	return environment.Changes{Status: "failed", NewVariables: []string{}, MissingFromTemplate: []string{}}
 }
 
 func (s *service) Week(ctx context.Context) ([]domain.Day, error) {
@@ -73,5 +88,7 @@ func (s *service) Summary(ctx context.Context, date time.Time) (Result, error) {
 	if err := ctx.Err(); err != nil {
 		return Result{}, err
 	}
-	return Result{Day: day, Email: email}, nil
+	result := Result{Day: day, Email: email}
+	result.EnvironmentChanges = s.environment(ctx, TicketAIContext{Summary: result, AllTicketWorklogs: snapshot})
+	return result, ctx.Err()
 }

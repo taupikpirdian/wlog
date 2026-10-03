@@ -155,6 +155,9 @@ func TestAISummaryReadsDatabaseRepositoriesOutsideCurrentDirectory(t *testing.T)
 	}
 	seen := map[string]bool{}
 	for _, request := range agent.requests {
+		if request.Context.Summary.EnvironmentChanges.Status != "checked" || len(request.Context.Summary.EnvironmentChanges.NewVariables) != 1 || request.Context.Summary.EnvironmentChanges.NewVariables[0] != "CAPTURED_ENV" {
+			t.Fatalf("missing authoritative detector result: %+v", request.Context.Summary.EnvironmentChanges)
+		}
 		if request.Context.OutputLanguage != application.LanguageEnglish {
 			t.Fatalf("selected language lost between repositories: %q", request.Context.OutputLanguage)
 		}
@@ -178,13 +181,29 @@ func TestAISummaryReadsDatabaseRepositoriesOutsideCurrentDirectory(t *testing.T)
 	if !strings.Contains(out.String(), "Time:\n2h") || !strings.Contains(out.String(), "Dev By:\ndeveloper@example.com") || strings.Contains(out.String(), "[Custom]") {
 		t.Fatalf("final output=%q", out.String())
 	}
-	if !strings.Contains(out.String(), "New Environment Variables:\n- CAPTURED_ENV\n") || strings.Count(out.String(), "- CAPTURED_ENV\n") != 1 {
+	if !strings.Contains(out.String(), "New environment variables:\n- CAPTURED_ENV\n") || strings.Count(out.String(), "- CAPTURED_ENV\n") != 1 {
 		t.Fatalf("new captured environment missing or duplicated: %q", out.String())
 	}
 	for _, excluded := range []string{"EXISTING_ENV", "HEAD_ONLY_ENV", "private-fixture-value"} {
 		if strings.Contains(out.String(), excluded) {
 			t.Fatalf("non-new/uncaptured environment or value leaked into summary: %q", out.String())
 		}
+	}
+
+	// The exact same captured ranges are checked when AI is declined.
+	out.Reset()
+	progress.Reset()
+	plain := cli.NewRootCommand(nil, "test", nil, nil)
+	plain.AddCommand(cli.NewSummaryCommand(factory))
+	plain.SetOut(&out)
+	plain.SetErr(&progress)
+	plain.SetIn(strings.NewReader("5\n1\nn\n"))
+	plain.SetArgs([]string{"summary"})
+	if err := plain.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), "New environment variables:\n- CAPTURED_ENV\n") || strings.Contains(out.String(), "HEAD_ONLY_ENV") || strings.Contains(out.String(), "private-fixture-value") || len(agent.requests) != 2 {
+		t.Fatalf("non-AI environment check=%q", out.String())
 	}
 
 	// The short command selects this Friday ticket directly from the week;

@@ -68,5 +68,7 @@ func (s *service) TicketContext(ctx context.Context, date time.Time, key string)
 	if err != nil {
 		return TicketAIContext{}, err
 	}
-	return TicketAIContext{TicketKey: key, Summary: Result{Day: day, Email: email}, AllTicketWorklogs: snapshot}, nil
+	value := TicketAIContext{TicketKey: key, Summary: Result{Day: day, Email: email}, AllTicketWorklogs: snapshot}
+	value.Summary.EnvironmentChanges = s.environment(ctx, value)
+	return value, ctx.Err()
 }

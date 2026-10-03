@@ -27,5 +27,6 @@ func formatSummary(result application.Result) string {
 		email = "-"
 	}
 	fmt.Fprintf(&b, "\nHasil:\n-\n\nDev By:\n%s\n", email)
+	b.WriteString(formatEnvironmentChanges(result.EnvironmentChanges))
 	return b.String()
 }
