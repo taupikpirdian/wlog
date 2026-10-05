@@ -71,18 +71,20 @@ func renderDashboard(v domain.View) string {
 		if title == "" {
 			title = "-"
 		}
-		fmt.Fprintf(&b, "%-12s %s  [repo: %s] — %s\n", safeText(ticket.Key), dailyDuration(ticket.Seconds), repositoryNames(ticket.Repositories), title)
+		fmt.Fprintf(&b, "%-12s %s", safeText(ticket.Key), dailyDuration(ticket.Seconds))
+		if ticket.CommitCount > 0 {
+			label := "commits"
+			if ticket.CommitCount == 1 {
+				label = "commit"
+			}
+			fmt.Fprintf(&b, " (%d %s)", ticket.CommitCount, label)
+		}
+		fmt.Fprintf(&b, "  [repo: %s] — %s\n", repositoryNames(ticket.Repositories), title)
 	}
 	fmt.Fprintf(&b, "Total        %s\n", dailyDuration(v.TotalSeconds))
-	for _, section := range []struct {
-		name   string
-		events []domain.Event
-	}{{"Unsessioned", v.Unsessioned}, {"Unassigned", v.Unassigned}} {
-		if len(section.events) == 0 {
-			continue
-		}
-		fmt.Fprintf(&b, "\n%s\n", section.name)
-		for _, event := range section.events {
+	if len(v.Unassigned) > 0 {
+		b.WriteString("\nUnassigned\n")
+		for _, event := range v.Unassigned {
 			writeEvent(&b, event, v)
 		}
 	}

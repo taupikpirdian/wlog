@@ -45,8 +45,8 @@ func TestDailyCommandsRenderViewsAndClose(t *testing.T) {
 		want   []string
 		absent string
 	}{
-		{nil, []string{"DEV WORKLOG", "OOT-3668 — Support QA", "Started : 13:00", "Duration: 30m", "OOT-3751     2h 30m  [repo: -] — Fix tax calculation", "OOT-9        0m  [repo: -] — outside session", "Total        3h", "Unsessioned", "Unassigned"}, "wl ready"},
-		{[]string{"today"}, []string{"02 Oct 2026", "09:00  START   OOT-3751", "09:15  NOTE    OOT-3751  Check tax calculation", "10:12  COMMIT  OOT-3751  fix tax calculation [abc1234]", "11:30  STOP    OOT-3751", "13:00  START   OOT-3668", "Total tracked: 3h"}, "STOP    OOT-3668"},
+		{nil, []string{"DEV WORKLOG", "OOT-3668 — Support QA", "Started : 13:00", "Duration: 30m", "OOT-3751     2h 30m (1 commit)  [repo: -] — Fix tax calculation", "OOT-9        0m (1 commit)  [repo: -] — outside session", "Total        3h", "Unassigned"}, "Unsessioned"},
+		{[]string{"today"}, []string{"02 Oct 2026", "09:00  START   OOT-3751", "09:15  NOTE    OOT-3751  Check tax calculation", "10:12  COMMIT  OOT-3751  fix tax calculation [abc1234]", "11:30  STOP    OOT-3751", "13:00  START   OOT-3668", "13:30  COMMIT  OOT-9  outside session", "Total tracked: 3h"}, "STOP    OOT-3668"},
 	} {
 		reads, closes := 0, 0
 		root := NewRootCommand(func(context.Context) (DashboardReader, func() error, error) {
@@ -95,6 +95,27 @@ func TestDailyCommandsEmptyOvernightAndDurationFormatting(t *testing.T) {
 		if got := dailyDuration(tc.seconds); got != tc.want {
 			t.Fatalf("duration %d: %s", tc.seconds, got)
 		}
+	}
+}
+
+func TestDashboardCommitCountsAndTimelineEvidence(t *testing.T) {
+	value := dailyView(t)
+	value.Tickets = append(value.Tickets, domain.TicketSummary{Key: "OOT-3843", CommitCount: 3, Repositories: []string{"/work/wlog"}, Title: "Fix status"})
+	output := renderDashboard(value)
+	for _, want := range []string{
+		"OOT-3668     30m  [repo: -] — Support QA",
+		"OOT-3751     2h 30m (1 commit)",
+		"OOT-3843     0m (3 commits)  [repo: wlog] — Fix status",
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("missing %q:\n%s", want, output)
+		}
+	}
+	if strings.Contains(output, "Unsessioned") || strings.Contains(output, "(0 commits)") || strings.Contains(output, "abc1234") {
+		t.Fatal(output)
+	}
+	if timeline := renderTimeline(value); !strings.Contains(timeline, "COMMIT  OOT-9  outside session") || !strings.Contains(timeline, "[abc1234]") {
+		t.Fatal(timeline)
 	}
 }
 
@@ -202,7 +223,7 @@ func TestDashboardAndTimelineShowRepositoryFolderNames(t *testing.T) {
 		value.Unassigned[i].Repository = "/work/sandbox"
 	}
 	dashboard := renderDashboard(value)
-	for _, want := range []string{"Repo    : backend", "[repo: backend, frontend]", "[repo: tools]", "[repo: sandbox]"} {
+	for _, want := range []string{"Repo    : backend", "[repo: backend, frontend]", "[repo: sandbox]"} {
 		if !strings.Contains(dashboard, want) {
 			t.Fatalf("missing %q: %s", want, dashboard)
 		}

@@ -41,7 +41,7 @@ func TestDailyViewClipsAndAggregatesWithoutChangingSources(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []domain.TicketSummary{{Key: "OOT-3668", Seconds: 2700}, {Key: "OOT-3747", Seconds: 4500}, {Key: "OOT-3751", Title: "Fix tax calculation", Seconds: 9000}, {Key: "OOT-9", Title: "fix", Seconds: 0}}
+	want := []domain.TicketSummary{{Key: "OOT-3668", Seconds: 2700}, {Key: "OOT-3747", Seconds: 4500}, {Key: "OOT-3751", Title: "Fix tax calculation", Seconds: 9000}, {Key: "OOT-9", Title: "fix", Seconds: 0, CommitCount: 1}}
 	if !reflect.DeepEqual(view.Tickets, want) || view.TotalSeconds != 16200 || view.Active == nil || view.Active.ElapsedSeconds != 6120 {
 		t.Fatalf("view: %+v", view)
 	}
@@ -213,8 +213,8 @@ func TestTicketTitlesUseFirstDailySessionOrCommit(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := []domain.TicketSummary{
-		{Key: "OOT-1", Title: "Overnight work", Seconds: 5400},
-		{Key: "OOT-2", Title: "First commit"},
+		{Key: "OOT-1", Title: "Overnight work", Seconds: 5400, CommitCount: 1},
+		{Key: "OOT-2", Title: "First commit", CommitCount: 3},
 		{Key: "OOT-3", Title: "meeting be"},
 		{Key: "OOT-4"},
 	}

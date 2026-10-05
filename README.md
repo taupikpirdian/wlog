@@ -24,7 +24,7 @@ These examples use demo data and show output from the CLI.
 
 ![Animated CLI demo: install the post-commit hook, commit with automatic capture, dashboard, start session, add a note, stop session, and review the daily timeline](docs/images/workflow.gif)
 
-The demo installs `wl install-hooks` once in a temporary repository, then makes a real commit. The local Git `post-commit` hook captures it automatically, so no manual `wl git` command is needed. With no active session, the commit appears under **Unsessioned** on the dashboard. The demo then starts a session, adds a note, stops it, and reviews the timeline. The demo clock advances between steps; commits and notes do not add tracked time. Automatic hook installation is available on macOS, Linux, and WSL; the installer records the binary's absolute path so commits from terminals and editors can use it.
+The demo installs `wl install-hooks` once in a temporary repository, then makes a real commit. The local Git `post-commit` hook captures it automatically, so no manual `wl git` command is needed. With no active session, the commit appears in the daily timeline and contributes to its ticket’s commit count on the dashboard. The demo then starts a session, adds a note, stops it, and reviews the timeline. The demo clock advances between steps; commits and notes do not add tracked time. Automatic hook installation is available on macOS, Linux, and WSL; the installer records the binary's absolute path so commits from terminals and editors can use it.
 
 **Dashboard — active session and daily totals**
 
@@ -173,7 +173,7 @@ wl today
 
 The timeline displays `START`, `NOTE`, `COMMIT`, and `STOP` in chronological order, with a ticket and repository folder name on each line, for example `[repo: wlog]`. Repository names come from the stored activity or session, so records from different repositories retain their own labels regardless of your current directory. Records without repository information display `[repo: -]`. Dates and times use the device's local time zone, and all repositories in the user's database are included. Active sessions do not receive an artificial `STOP` event.
 
-Notes and commits provide evidence and do not add tracked time. Commits with a ticket but no session appear under `Unsessioned` in the dashboard; commits without a ticket appear under `Unassigned`. The timeline includes both. Daily durations are summed in seconds before being displayed in minutes, so the total may differ from the sum of the displayed minutes for individual tickets.
+Notes and commits provide evidence and do not add tracked time. Each dashboard ticket shows its commit count for today when it has commits, including commits without a session. Commit details are available in `wl today`; commits without a ticket also appear under `Unassigned` on the dashboard. Daily durations are summed in seconds before being displayed in minutes, so the total may differ from the sum of the displayed minutes for individual tickets.
 
 Both commands read a single consistent snapshot without changing work data, invoking Git, or accessing the network. Multiline notes and commit messages are displayed as a safe single line; their stored contents remain intact. Read failures produce a non-zero exit status rather than an empty view.
 

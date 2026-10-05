@@ -45,6 +45,7 @@ type TicketSummary struct {
 	Key          string
 	Title        string
 	Seconds      int64
+	CommitCount  int
 	Repositories []string
 }
 type ActiveView struct {
@@ -69,6 +70,7 @@ func Build(source Snapshot, now time.Time, location *time.Location) (View, error
 	start := time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, location)
 	view := View{Now: now, Start: start, End: start.AddDate(0, 0, 1), Location: location}
 	totals := map[string]int64{}
+	commitCounts := map[string]int{}
 	sessionTitles := map[string]Event{}
 	commitTitles := map[string]Event{}
 	selectTitle := func(titles map[string]Event, key, text string, at time.Time, id int64) {
@@ -164,6 +166,7 @@ func Build(source Snapshot, now time.Time, location *time.Location) (View, error
 		} else {
 			totals[a.TicketKey] += 0
 			if kind == "COMMIT" {
+				commitCounts[a.TicketKey]++
 				subject := strings.SplitN(strings.TrimSpace(text), "\n", 2)[0]
 				selectTitle(commitTitles, a.TicketKey, subject, a.At, a.ID)
 			}
@@ -178,7 +181,7 @@ func Build(source Snapshot, now time.Time, location *time.Location) (View, error
 		if title == "" {
 			title = commitTitles[key].Text
 		}
-		summary := TicketSummary{Key: key, Title: title, Seconds: seconds}
+		summary := TicketSummary{Key: key, Title: title, Seconds: seconds, CommitCount: commitCounts[key]}
 		for repository := range repositories[key] {
 			summary.Repositories = append(summary.Repositories, repository)
 		}
