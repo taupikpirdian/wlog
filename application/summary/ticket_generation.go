@@ -3,13 +3,14 @@ package summary
 import (
 	"context"
 	"errors"
+	"regexp"
 	"strings"
 
 	"github.com/taupikpirdian/wlog/application/bootstrap"
 )
 
-// GeneratedTicket is the final Markdown artifact. Its title, sections and tables
-// belong to the loaded skill, and are never mapped into the summary schema.
+// GeneratedTicket is the final Jira-ready artifact. The skill determines its
+// sections, subject to the application's Jira formatting rules.
 type GeneratedTicket struct {
 	Content string
 }
@@ -18,11 +19,45 @@ type TicketAIAgent interface {
 	GenerateTicket(context.Context, AIRequest, ProgressHandler) (*GeneratedTicket, error)
 }
 
+var markdownTicketHeading = regexp.MustCompile(`(?m)^[\t ]*#{1,6}[\t ]+`)
+
 func ValidateGeneratedTicket(ticket *GeneratedTicket) error {
 	if ticket == nil || strings.TrimSpace(ticket.Content) == "" {
 		return errors.New("AI produced an empty Jira ticket; retry generation or check the configured agent")
 	}
+	if markdownTicketHeading.MatchString(ticket.Content) {
+		return errors.New("AI produced Markdown headings; Jira tickets require plain section titles")
+	}
+	inTable := false
+	for _, line := range strings.Split(ticket.Content, "\n") {
+		line = strings.TrimSpace(line)
+		if strings.Contains(line, "|") && markdownTableSeparator(line) {
+			return errors.New("AI produced a Markdown table separator; Jira tables require double-pipe headers and single-pipe data rows")
+		}
+		if strings.HasPrefix(line, "||") && strings.HasSuffix(line, "||") {
+			inTable = true
+			continue
+		}
+		if strings.HasPrefix(line, "|") {
+			if !inTable || !strings.HasSuffix(line, "|") {
+				return errors.New("AI produced a Markdown or invalid table; Jira tables require double-pipe headers and single-pipe data rows")
+			}
+			continue
+		}
+		inTable = false
+	}
 	return nil
+}
+
+func markdownTableSeparator(line string) bool {
+	cells := strings.Split(strings.Trim(line, "|"), "|")
+	for _, cell := range cells {
+		cell = strings.Trim(strings.TrimSpace(cell), ":")
+		if len(cell) < 3 || strings.Trim(cell, "-") != "" {
+			return false
+		}
+	}
+	return true
 }
 
 func GenerateTicketAI(ctx context.Context, value TicketAIContext, config bootstrap.AIConfig, factory AIAgentFactory, worklogsOnly bool, fallbackDirectory string, skills TicketSkillResolver, progress ProgressHandler) (GeneratedTicket, error) {
@@ -78,7 +113,7 @@ func GenerateTicketAI(ctx context.Context, value TicketAIContext, config bootstr
 	}
 	ticketAgent, ok := agent.(TicketAIAgent)
 	if !ok {
-		return GeneratedTicket{}, errors.New("configured AI adapter does not support Markdown ticket generation")
+		return GeneratedTicket{}, errors.New("configured AI adapter does not support Jira ticket generation")
 	}
 	// One invocation inspects all recorded repositories and produces one ticket.
 	// Joining per-repository tickets would duplicate titles and corrupt skill format.

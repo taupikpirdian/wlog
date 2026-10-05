@@ -24,7 +24,7 @@ func TestFormatSummary(t *testing.T) {
 		{"terminal controls", application.Result{Day: domain.Day{Details: []string{"\x1b[31mFix\x1b[0m"}}, Email: "\x1b[31mdev@example.com\x1b[0m"}, "Time:\n0m\n\nGenerated for Logs:\nDetail:\n- Fix\n\nResult:\n-\n\nDev By:\ndev@example.com\n"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := formatSummary(tc.result); got != tc.want+"\n### Environment Changes\n\nEnvironment variable check could not be completed.\n" {
+			if got := formatSummary(tc.result); got != tc.want+"\nEnvironment Changes\n\nEnvironment variable check could not be completed.\n" {
 				t.Fatalf("got=%q want=%q", got, tc.want)
 			}
 		})
@@ -105,7 +105,7 @@ func TestSummaryCommandSelectionAndOutput(t *testing.T) {
 		}
 	}
 	want := "Time:\n2h\n\nGenerated for Logs:\nDetail:\n- Fix\n\nResult:\n-\n\nDev By:\ndev@example.com\n"
-	if out.String() != want+"\n### Environment Changes\n\nEnvironment variable check could not be completed.\n" {
+	if out.String() != want+"\nEnvironment Changes\n\nEnvironment variable check could not be completed.\n" {
 		t.Fatalf("stdout=%q", out.String())
 	}
 	if !strings.HasSuffix(prompts.String(), "\nIf wlog is useful for your workflow, consider giving it a ⭐ on GitHub:\nhttps://github.com/taupikpirdian/wlog\n") || strings.Count(prompts.String(), "https://github.com/taupikpirdian/wlog") != 1 {

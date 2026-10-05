@@ -20,7 +20,7 @@ func TestEnvironmentSectionAlwaysUsesApplicationResult(t *testing.T) {
 		r := application.Result{EnvironmentChanges: tc.changes}
 		ai := application.AIResult{Context: application.TicketAIContext{Summary: r}, Response: application.AIResponse{Worklog: application.WorklogText{EnvironmentVariables: []string{"INVENTED_BY_AI"}}}}
 		for _, text := range []string{formatSummary(r), formatAISummary(ai)} {
-			if strings.Count(text, "### Environment Changes") != 1 || !strings.Contains(text, tc.want) || strings.Contains(text, "INVENTED_BY_AI") {
+			if strings.Count(text, "Environment Changes") != 1 || !strings.Contains(text, tc.want) || strings.Contains(text, "INVENTED_BY_AI") {
 				t.Fatalf("text=%q", text)
 			}
 			if tc.changes.Status != "checked" && strings.Contains(text, "No new environment") {

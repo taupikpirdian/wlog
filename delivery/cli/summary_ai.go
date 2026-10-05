@@ -132,6 +132,13 @@ func runAIGeneration(cmd *cobra.Command, input *bufio.Reader, reader SummaryRead
 	if err != nil {
 		return err
 	}
+	var additionalContext string
+	if !ticketOnly {
+		additionalContext, err = readAdditionalContext(input, cmd.ErrOrStderr())
+		if err != nil {
+			return err
+		}
+	}
 	ctx, cancel := context.WithCancel(cmd.Context())
 	defer cancel()
 	renderer := NewProgressRenderer(cmd.ErrOrStderr())
@@ -159,6 +166,7 @@ func runAIGeneration(cmd *cobra.Command, input *bufio.Reader, reader SummaryRead
 		return err
 	}
 	value.OutputLanguage = language
+	value.AdditionalContext = additionalContext
 	value, err = application.CollectCode(ctx, value, options.Git, progress)
 	if err != nil {
 		return err

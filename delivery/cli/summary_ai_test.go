@@ -110,7 +110,7 @@ func (a *cliAgentFake) Generate(_ context.Context, request application.AIRequest
 	return &application.AIResponse{Worklog: application.WorklogText{Details: []string{"AI detail"}, Results: []string{"AI result"}}, TicketDescription: application.TicketDescription{Background: "Background", ProblemRequirement: "Requirement", Scope: []string{"Scope"}, ExpectedResult: "Expected"}}, nil
 }
 
-const skillTicketFixture = "# [FEATURE] Ticket title\n\n## Description\nRecorded implementation.\n\n## Goal\nExpected behavior.\n\n## In Scope\n- Validation\n\n## QA Impact\n| No | Area | Yang dicek | Expected | Dikerjakan oleh |\n|----|------|-----------|----------|-----------------|\n| 1 | Validation | Input kosong | Ditolak | QA Engineer |\n\n## Acceptance Criteria\n- Reject invalid input\n"
+const skillTicketFixture = "[FEATURE] Ticket title\n\nDescription\nRecorded implementation.\n\nGoal\nExpected behavior.\n\nIn Scope\n- Validation\n\nQA Impact\n|| No || Area || Yang dicek || Expected || Dikerjakan oleh ||\n| 1 | Validation | Input kosong | Ditolak | QA Engineer |\n\nAcceptance Criteria\n- Reject invalid input\n"
 
 func (a *cliAgentFake) GenerateTicket(_ context.Context, request application.AIRequest, progress application.ProgressHandler) (*application.GeneratedTicket, error) {
 	a.calls++
@@ -119,7 +119,7 @@ func (a *cliAgentFake) GenerateTicket(_ context.Context, request application.AIR
 	if progress != nil {
 		progress(application.ProgressEvent{Provider: "codex", Type: application.ProgressTool, Message: "Running git diff", RepositoryPath: request.WorkingDirectory})
 	}
-	content := "# Ticket title\n\n### Background\nRecorded context\n\n### Scope\n- Validation\n"
+	content := "Ticket title\n\nDescription\nRecorded context\n\nScope\n- Validation\n"
 	if request.Skill.Loaded {
 		content = skillTicketFixture
 	}
@@ -147,12 +147,12 @@ func TestEnhancedSummaryFlows(t *testing.T) {
 		wantAI, wantSave    bool
 	}{
 		{"AI No", "5\n1\nn\n", true, false, false, false},
-		{"AI Yes", "5\n1\ny\n1\n", true, false, true, false},
-		{"AI English", "5\n1\ny\n2\n", true, false, true, false},
-		{"configure and resume", "5\n1\ny\ny\n1\n\n1\n", false, false, true, true},
+		{"AI Yes", "5\n1\ny\n1\n\n", true, false, true, false},
+		{"AI English", "5\n1\ny\n2\n\n", true, false, true, false},
+		{"configure and resume", "5\n1\ny\ny\n1\n\n1\n\n", false, false, true, true},
 		{"decline config", "5\n1\ny\nn\n", false, false, false, false},
-		{"missing code accepted", "5\n1\ny\n1\ny\n", true, true, true, false},
-		{"missing code declined", "5\n1\ny\n1\nn\n", true, true, false, false},
+		{"missing code accepted", "5\n1\ny\n1\n\ny\n", true, true, true, false},
+		{"missing code declined", "5\n1\ny\n1\n\nn\n", true, true, false, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			reader := &enhancedSummaryStub{value: application.TicketAIContext{TicketKey: "OOT-1", Summary: application.Result{Day: domain.Day{Date: date, Seconds: 9000, CommitCount: 1, Details: []string{"Recorded detail"}, HasWorklog: true}, Email: "database@example.com"}, AllTicketWorklogs: dashboard.Snapshot{Activities: []dashboard.Activity{{Type: "GIT_COMMIT", Repository: "/database/repo", Hash: "bbb", At: date.Add(time.Hour)}}}}}
@@ -199,7 +199,7 @@ func TestEnhancedSummaryFlows(t *testing.T) {
 					t.Fatalf("language=%q prompts=%q", agent.request.Context.OutputLanguage, prompts.String())
 				}
 			}
-			if (tc.name == "AI No" || tc.name == "decline config") && strings.Contains(prompts.String(), "Select output language:") {
+			if (tc.name == "AI No" || tc.name == "decline config") && (strings.Contains(prompts.String(), "Select output language:") || strings.Contains(prompts.String(), "Additional context for this summary")) {
 				t.Fatal("non-AI flow asked for an AI output language")
 			}
 			if tc.wantAI && (!strings.Contains(prompts.String(), "[Codex] → Running git diff") || !strings.Contains(prompts.String(), "✓ Jira summary generated.")) {
@@ -258,14 +258,14 @@ func TestSummaryTicketFallbackAndEmptyArtifact(t *testing.T) {
 		var out, progress bytes.Buffer
 		cmd.SetOut(&out)
 		cmd.SetErr(&progress)
-		cmd.SetIn(strings.NewReader("5\n1\ny\n2\n"))
+		cmd.SetIn(strings.NewReader("5\n1\ny\n2\n\n"))
 		cmd.SetArgs([]string{})
 		err := cmd.Execute()
 		if empty {
 			if err == nil || !strings.Contains(err.Error(), "empty Jira ticket") || strings.Contains(out.String(), "Generated for Logs:") || strings.Contains(progress.String(), "✓ Jira summary generated.") {
 				t.Fatalf("empty ticket reported success: error=%v output=%q progress=%q", err, out.String(), progress.String())
 			}
-		} else if err != nil || !strings.Contains(out.String(), "Generated for Details Ticket:\nPowered by Enforge Skills, created by rfanazhari\n\n# Ticket title\n") || !strings.Contains(progress.String(), "Using built-in wlog ticket-generation instructions") {
+		} else if err != nil || !strings.Contains(out.String(), "Generated for Details Ticket:\nPowered by Enforge Skills, created by rfanazhari\n\nTicket title\n") || !strings.Contains(progress.String(), "Using built-in wlog ticket-generation instructions") {
 			t.Fatalf("fallback: error=%v output=%q progress=%q", err, out.String(), progress.String())
 		}
 		if skills.calls != 1 || agent.ticketCalls != 1 || agent.summaryCalls != 1 || !agent.request.Context.TicketOnly {
@@ -282,7 +282,7 @@ func TestAIFormatterControlledFactsAndBullets(t *testing.T) {
 	}
 	got := formatAISummary(result)
 	want := "Time:\n2h (3 commits)\n\nGenerated for Logs:\nDetail:\n- Change\n\nResult:\n-\n\nDev By:\nreal@example.com\n\nGenerated for Details Ticket:\nPowered by Enforge Skills, created by rfanazhari\n\n" + skillTicketFixture
-	if got != want+"\n### Environment Changes\n\nEnvironment variable check could not be completed.\n" {
+	if got != want+"\nEnvironment Changes\n\nEnvironment variable check could not be completed.\n" {
 		t.Fatalf("got=%q want=%q", got, want)
 	}
 }

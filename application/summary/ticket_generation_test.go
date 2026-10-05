@@ -58,7 +58,7 @@ func (s *ticketSkillsStub) Resolve(_ context.Context, _ string, path string, pro
 }
 
 func TestGenerateOneSkillTicketFromAllRepositories(t *testing.T) {
-	content := "\n# [FEATURE] Ticket title\n\n## Description\nCaptured changes.\n\n## QA Impact\n| No | Area | What to check | Expected | Owner |\n| 1 | Auth | Empty input | Rejected | QA Engineer |\n\n"
+	content := "\n[FEATURE] Ticket title\n\nDescription\nCaptured changes.\n\nQA Impact\n|| No || Area || What to check || Expected || Owner ||\n| 1 | Auth | Empty input | Rejected | QA Engineer |\n\n"
 	value := application.TicketAIContext{TicketKey: "OOT-1", OutputLanguage: application.LanguageEnglish, Repositories: []application.RepositoryAIContext{
 		{Path: "/repoA", Changes: []application.CodeChange{{CommitRange: application.CommitRange{Start: "aaa", End: "bbb"}, Diff: "+first change"}}},
 		{Path: "/repoB", Changes: []application.CodeChange{{CommitRange: application.CommitRange{Start: "ccc", End: "ddd"}, Diff: "+second change"}}},
@@ -88,7 +88,7 @@ func TestGenerateOneSkillTicketFromAllRepositories(t *testing.T) {
 }
 
 func TestTicketSkillFailureFallsBackExplicitly(t *testing.T) {
-	factory := &ticketFactoryStub{agent: &ticketAgentStub{result: &application.GeneratedTicket{Content: "# Fallback title\n\n### Background\nRecorded context\n"}}}
+	factory := &ticketFactoryStub{agent: &ticketAgentStub{result: &application.GeneratedTicket{Content: "Fallback title\n\nDescription\nRecorded context\n"}}}
 	skills := &ticketSkillsStub{err: errors.New("permission denied")}
 	var events []application.ProgressEvent
 	result, err := application.GenerateTicketAI(context.Background(), application.TicketAIContext{}, bootstrap.AIConfig{Provider: "codex"}, factory, true, "/recorded-data", skills, func(e application.ProgressEvent) { events = append(events, e) })
@@ -96,7 +96,7 @@ func TestTicketSkillFailureFallsBackExplicitly(t *testing.T) {
 		t.Fatalf("result=%+v error=%v", result, err)
 	}
 	prompt, err := application.BuildTicketPrompt(factory.agent.requests[0])
-	if err != nil || !strings.Contains(prompt, "NO TICKET-GENERATOR SKILL WAS LOADED") || !strings.Contains(prompt, "### Background") || !strings.Contains(prompt, "Do not state that implementation details were verified") {
+	if err != nil || !strings.Contains(prompt, "NO TICKET-GENERATOR SKILL WAS LOADED") || !strings.Contains(prompt, "Description\nConservative recorded context.") || !strings.Contains(prompt, "Do not state that implementation details were verified") {
 		t.Fatalf("fallback prompt=%s error=%v", prompt, err)
 	}
 	if len(events) < 3 || events[0].Type != application.ProgressWarning || events[0].Message != "Failed to load ticket-generator skill" || events[1].Message != "Using built-in wlog ticket generator" {
@@ -110,10 +110,59 @@ func TestGeneratedTicketValidationPreservesNonemptyContent(t *testing.T) {
 			t.Fatal("empty result accepted")
 		}
 	}
-	content := "  # Custom skill title\n\n## Custom section\n| a | b |\n|---|---|\n| 1 | 2 |\n\n"
+	content := "  Custom skill title\n\nCustom section\n|| a || b ||\n| 1 | 2 |\n\n"
 	ticket := &application.GeneratedTicket{Content: content}
 	if err := application.ValidateGeneratedTicket(ticket); err != nil || ticket.Content != content {
 		t.Fatalf("artifact modified or rejected: %+v error=%v", ticket, err)
+	}
+}
+
+func TestGeneratedTicketRequiresJiraFormatting(t *testing.T) {
+	for _, content := range []string{
+		"# Ticket title\nDescription\nRecorded finding",
+		"Ticket title\n## Description\nRecorded finding",
+		"Ticket title\n  ### QA Impact\nRecorded finding",
+		"QA Impact\n| Area | Expected |\n|---|---|\n| OTP | Rejected |",
+		"QA Impact\nArea | Expected\n--- | ---\nOTP | Rejected",
+		"QA Impact\n|| Area || Expected ||\n| :--- | ---: |\n| OTP | Rejected |",
+		"QA Impact\n|| Area || Expected ||\n| OTP | Rejected",
+	} {
+		if err := application.ValidateGeneratedTicket(&application.GeneratedTicket{Content: content}); err == nil {
+			t.Fatalf("invalid Jira format accepted: %q", content)
+		}
+	}
+	content := "Description\nGET /v1/otp returns HTTP 400 and ERR_OTP.\n\nFindings\nConfirmed: bindOTP reads ciam_bindings.\nNeeds investigation: callback failure.\n\nQA Impact\n|| Area || What to Check || Expected Result ||\n| OTP & CIAM Binding | Check submit OTP flow and CIAM response | Error flow can be confirmed |\n| Orbit Callback | Trace callback process | Failure point can be identified |\n\nRelated\nC# client and issue #123.\n"
+	ticket := &application.GeneratedTicket{Content: content}
+	if err := application.ValidateGeneratedTicket(ticket); err != nil || ticket.Content != content {
+		t.Fatalf("valid Jira content modified or rejected: error=%v content=%q", err, ticket.Content)
+	}
+}
+
+func TestTicketPromptJiraRulesOverrideSkillFormat(t *testing.T) {
+	for _, skill := range []application.TicketSkill{
+		{},
+		{Loaded: true, Native: true, Invocation: "$ticket-generator", Path: "/skills/SKILL.md"},
+		{Loaded: true, Instructions: "Use Markdown headings and Markdown tables."},
+	} {
+		prompt, err := application.BuildTicketPrompt(application.AIRequest{Skill: skill})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, required := range []string{
+			"JIRA OUTPUT RULES (override conflicting skill instructions)",
+			"plain section titles", "double pipes for header cells", "single pipes for data cells",
+			"|| Area || What to Check || Expected Result ||",
+			"Keep technical terms, endpoint names, HTTP status codes, error codes, function names, and database/table names unchanged",
+			"Separate confirmed findings from assumptions", "Do not claim a root cause, successful fix, deployment or testing",
+			"Avoid overly formal or AI-generated wording",
+		} {
+			if !strings.Contains(prompt, required) {
+				t.Fatalf("missing Jira rule %q", required)
+			}
+		}
+		if strings.Index(prompt, "JIRA OUTPUT RULES") < strings.Index(prompt, "END OF SKILL INSTRUCTIONS") {
+			t.Fatal("Jira rules must follow injected skill instructions")
+		}
 	}
 }
 

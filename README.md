@@ -222,7 +222,7 @@ Dev By comes from `git config user.email` in the current directory, falling back
 
 After a successful summary, a GitHub star invitation appears once at the end on stderr, separated by a blank line. It applies to AI and non-AI summaries and stays outside the copyable Jira output. Failed or canceled commands do not show it.
 
-AI output separates `Generated for Logs:` from `Generated for Details Ticket:`. The ticket heading is followed by `Powered by Enforge Skills, created by rfanazhari`, then a blank line before the generated content. The ticket section uses the same installed `ticket-generator` skill resolution and Markdown generation as `wl gt`, preserving its title, sections, and QA tables. It uses the complete recorded ticket history; the logs and commit count remain scoped to the selected date. If the skill is unavailable, the same explicit built-in fallback as `wl gt` applies. Summary generation performs the worklog analysis followed by one ticket generation invocation.
+AI output separates `Generated for Logs:` from `Generated for Details Ticket:`. The ticket heading is followed by `Powered by Enforge Skills, created by rfanazhari`, then a blank line before the generated content. The ticket section uses the same installed `ticket-generator` skill resolution and Jira-ready generation as `wl gt`, preserving its title, sections, and QA tables. It uses the complete recorded ticket history; the logs and commit count remain scoped to the selected date. If the skill is unavailable, the same explicit built-in fallback as `wl gt` applies. Summary generation performs the worklog analysis followed by one ticket generation invocation.
 
 ### Optional AI summary
 
@@ -234,6 +234,20 @@ wl summary
 `wl config ai` selects Codex, Claude, OpenCode, or Custom, and saves its executable in the existing `~/.worklog/config.yaml`. Install and authenticate the selected CLI before generating. If you choose AI without configuring a provider, `wl summary` offers this same wizard and resumes after saving. Declining configuration falls back to the selected ticket's non-AI summary.
 
 Before AI generation, choose the output language: **Bahasa Indonesia** (1, default) or **English** (2). This choice applies to both the worklog summary and ticket description, across all repositories and providers. Prompts and the `ticket-generator` methodology use the selected language while preserving Jira headings, JSON field names, code identifiers, duration, and developer email. Non-AI summaries retain the original recorded worklog descriptions without translation.
+
+After choosing the output language in `wl summary`, you can enter optional additional context for this generation. Paste investigation results, explanations, or document contents across multiple lines; blank lines between paragraphs are retained. Enter a single `.` on its own line to finish, press Enter before entering text to skip, or enter `q` before the first line to cancel. For long reports or logs with very long lines, enter `@/path/to/context.md` as the first line to read a UTF-8 text file directly. Relative paths, `~/` paths, and quoted paths with spaces are supported. File input finishes after that one line; no `.` terminator is needed, and the file is not modified. Pasted and file input are limited to 64 KiB.
+
+```text
+Additional context for this summary (optional, not saved to the database):
+Paste text across multiple lines, or enter @/path/to/context.md to read a text file.
+For pasted text, enter a single . to finish. Press Enter to skip, or q to cancel before entering text.
+> Observed HTTP 400 during bindOTP.
+
+The callback failure still needs investigation.
+.
+```
+
+This context is held in memory and sent to both the worklog analysis and ticket-description generation for the selected date/ticket. It is never added to notes, sessions, config, or the database, and the next run starts without it. AI treats it as supporting evidence: it can clarify findings but cannot override recorded duration, commit counts, email, Git ranges, or implementation evidence. URLs in additional context follow the same reading and failure-reporting rules as note URLs. For a private document the agent cannot access, paste its relevant contents here. The prompt appears only in the AI summary flow; `wl gt` keeps its existing inputs.
 
 Example configuration (only `provider` is active):
 
@@ -255,18 +269,22 @@ ai:
         mode: stderr
 ```
 
-Custom agents receive the strict prompt on stdin unless an argument includes `{{prompt}}`. Arguments are passed directly to the executable, without shell interpretation. Custom agents must return only valid JSON matching the summary contract: `worklog.details`, `worklog.results`, and `ticket_description` with `background`, `problem_requirement`, `scope`, `expected_result`, and optional `technical_notes`. Details, scope, background, problem, and expected result must be nonempty; results may be `[]` when no outcome is supported. Factual fields such as duration, email, ticket, and date are excluded from the AI response. The subsequent ticket generation invocation returns Markdown using the same contract as `wl gt`. The structured `ticket_description` is retained for adapter compatibility but is replaced in the displayed output by this generated Markdown. Invalid or empty output produces an explicit error rather than a malformed summary.
+Custom agents receive the strict prompt on stdin unless an argument includes `{{prompt}}`. Arguments are passed directly to the executable, without shell interpretation. Custom agents must return only valid JSON matching the summary contract: `worklog.details`, `worklog.results`, and `ticket_description` with `background`, `problem_requirement`, `scope`, `expected_result`, and optional `technical_notes`. Details, scope, background, problem, and expected result must be nonempty; results may be `[]` when no outcome is supported. Factual fields such as duration, email, ticket, and date are excluded from the AI response. The subsequent ticket generation invocation returns Jira-ready text using the same contract as `wl gt`. The structured `ticket_description` is retained for adapter compatibility but is replaced in the displayed output by this generated Jira-ready text. Invalid or empty output produces an explicit error rather than a malformed summary.
+
+Notes or additional context containing HTTP(S) URLs add a mandatory reading step to AI generation: the agent must open, read, and analyze each distinct reference before producing the ticket description. Linked documents can supply user analysis, findings, or additional context, including notes from earlier dates in the ticket history. Relevant references appear in Related. Code evidence still takes priority, and linked analysis must not be presented as confirmed implementation without supporting evidence. If a link requires authentication or cannot be read, the ticket must state the limitation instead of inventing content. The same instructions apply to `wl gt`; non-AI summaries do not open links.
+
+When note or additional-context URLs are present, wlog enables Codex live web retrieval, Claude WebFetch for the noted domains, and OpenCode webfetch for the noted URLs. The source inspection permissions remain in place. Custom agents receive the same prompt and must provide their own web-reading capability. Provider availability, site access, and authentication can still prevent retrieval; tests verify prompts and transport permissions with fake local agents, without making paid AI calls or fetching note links.
 
 ### Environment Changes
 
-Every `wl summary`, including non-AI generation and AI fallbacks, appends one mandatory `### Environment Changes` section. Detection belongs to the application, not the AI. It reads immutable blobs at the selected date/ticket's captured commit ranges using the recorded repository paths; it never substitutes current HEAD or the current directory's unrelated changes.
+Every `wl summary`, including non-AI generation and AI fallbacks, appends one mandatory `Environment Changes` section. Detection belongs to the application, not the AI. It reads immutable blobs at the selected date/ticket's captured commit ranges using the recorded repository paths; it never substitutes current HEAD or the current directory's unrelated changes.
 
 Candidates come from changed files at the end revision. They are compared with environment names in all supported files at the base revision, so refactors, renames, additional uses, and changed defaults do not create new variables. Names are deduplicated and sorted. Existing `.env.example`, `.env.sample`, `.env.template`, and `example.env` files at the end revision are checked for missing names; absence of a template is allowed.
 
 Built-in extractors support Go `os.Getenv`/`LookupEnv`; JavaScript/TypeScript `process.env`, `Bun.env`, and `Deno.env.get`; Python `os.getenv`/`os.environ`; PHP/Laravel `getenv`, `env`, `$_ENV`, and `$_SERVER`; Java/Kotlin `System.getenv` and literal Spring `@Value`/uppercase `environment.getProperty`; .NET `Environment.GetEnvironmentVariable`; Ruby `ENV`/`fetch`; Rust `std::env::var`/`var_os`; shell declarations; Docker `ENV`/`ARG`/`RUN` references; Compose environment maps/lists; Kubernetes env entries and locally resolvable ConfigMap/Secret `envFrom`; and environment template assignments. Generic .NET `configuration["NAME"]` is accepted only for an explicit environment-only `ConfigurationBuilder().AddEnvironmentVariables().Build()` assigned to `configuration` in the same file. GitHub Actions and GitLab CI variables are listed separately as CI-only.
 
 ```text
-### Environment Changes
+Environment Changes
 
 New environment variables:
 - API_BASE_URL
@@ -283,7 +301,7 @@ Only names enter the structured detector result, final output, and AI environmen
 Detection is static and conservative: dynamically assembled names, aliases, indirect configuration providers, external ConfigMaps/Secrets, shell locals/references without declarations, and unrendered configuration templates cannot always be resolved. Unresolved `envFrom` and parsing/read failures make the check incomplete. Git reads are bounded to 256 KiB per blob/command, revision scans to 2,048 supported files or 8 MiB, and checks to 128 ranges. Dependency trees (`vendor`, `node_modules`) are excluded. Add extractors through `DefaultExtractors` or inject them into the detector without changing the summary command.
 
 
-The AI output contains the Jira Worklog block followed by the Markdown Jira Ticket Description. Worklog scope is the selected date and ticket; ticket description uses all recorded evidence for that ticket. The application formats both outputs and supplies Time and Dev By itself.
+The AI output contains the Jira Worklog block followed by the Jira-ready Ticket Description. Worklog scope is the selected date and ticket; ticket description uses all recorded evidence for that ticket. The application formats both outputs and supplies Time and Dev By itself.
 
 Source evidence uses captured `work_activities.commit_hash`, `repository`, and `branch` from the database. The current schema does not record session start/end commit hashes. Each captured commit is analyzed as its **first parent → captured commit** diff (root commits use a root diff), with duplicate resolved hashes removed per repository. This avoids assuming that unrelated commits between two captures belong to the ticket. Capture the commits you want included through `wl git` or the installed hooks; unrecorded commits and uncommitted changes are not included.
 
@@ -318,17 +336,27 @@ wl generate-ticket
 wl gt
 ```
 
-Select a ticket directly from tickets with recorded worklogs in the current local Monday–Sunday week; there is no date selection. Each ticket appears once with its total tracked time for that week. The command reuses the existing AI configuration and repository/commit evidence pipeline and writes the final ticket Markdown, including its title, directly to stdout. Generation uses all recorded history for that ticket, including earlier weeks. Missing AI configuration can be completed in the same run. Worklogs-only generation still requires explicit consent when source code is unavailable. If this week has no ticket worklogs, the command reports this before asking for input or starting AI. `wl summary` retains its date selection and structured worklog analysis, then uses the same skill-based ticket generation for its ticket section.
+Select a ticket directly from tickets with recorded worklogs in the current local Monday–Sunday week; there is no date selection. Each ticket appears once with its total tracked time for that week. The command reuses the existing AI configuration and repository/commit evidence pipeline and writes the final Jira-ready ticket text, including its title, directly to stdout. Generation uses all recorded history for that ticket, including earlier weeks. Missing AI configuration can be completed in the same run. Worklogs-only generation still requires explicit consent when source code is unavailable. If this week has no ticket worklogs, the command reports this before asking for input or starting AI. `wl summary` retains its date selection and structured worklog analysis, then uses the same skill-based ticket generation for its ticket section.
 
 `wl generate-ticket` and `wl gt` offer the same **Bahasa Indonesia** or **English** output-language selection as AI summaries, before any AI process starts. Press Enter to use Bahasa Indonesia.
 
 Before ticket generation, wlog checks for an installed `ticket-generator/SKILL.md` in the recorded repositories and provider's user skill locations until it finds a readable skill. It reads the complete file (up to 256 KiB), displays actual check/read progress, and selects the repository where the skill was resolved as the agent's working directory. The agent receives all recorded repository paths, immutable commit ranges/diffs, worklogs, and sessions and generates one coherent ticket for the entire ticket history. Git continues reading evidence from each database repository path, independently of the user's current directory.
 
-When the skill is loaded, **ticket-generator owns the final format**: its title, section structure, wording, conditional QA Impact table, and omission rules are preserved. wlog validates only that the final content is nonempty and displays it unchanged; it does not map the result into Background / Problem / Scope / Expected Result / Technical Notes or the summary JSON schema. If the skill cannot be found or read, progress explicitly reports the fallback and the built-in generator uses a Markdown title with the older headings. No QA Impact placeholder is added by wlog.
+When the skill is loaded, it determines the applicable section structure and conditional QA Impact content. Jira output rules override conflicting skill formatting: use plain titles such as Description, Goal, Findings, Scope, Out of Scope, QA Impact, Acceptance Criteria, and Related, without Markdown heading prefixes. Tables use Jira Wiki syntax with double-pipe headers and single-pipe data rows, without Markdown separator rows. The application rejects empty content, Markdown headings, and invalid table formatting instead of displaying a successful ticket. Valid output is preserved without rewriting technical names or factual claims. If the skill cannot be found or read, progress reports the fallback; the built-in generator uses a plain title and Description, Findings, Scope, Goal, and optional Related sections. No QA Impact placeholder is added.
+
+Keep paragraphs short and wording natural for developers, QA, and non-technical readers. Preserve technical terms, endpoint names, HTTP status codes, error codes, function names, and database/table names. Confirmed findings must be separate from assumptions or further investigation; root cause, successful fixes, deployment, and testing require recorded evidence. Example table syntax:
+
+```text
+|| Area || What to Check || Expected Result ||
+| OTP & CIAM Binding | Check submit OTP flow and CIAM response | Error flow can be confirmed |
+| Orbit Callback | Trace callback process | Failure point can be identified |
+```
+
+These example rows illustrate formatting, not findings for a generated ticket.
 
 For native providers, wlog reports that it read the skill and that native loading will be requested; it does **not** claim that the agent already read it. Codex receives `$ticket-generator`, Claude can invoke `Skill`, and OpenCode can invoke `skill` for `ticket-generator`. The prompt requires the agent to read the native instructions (or the verified file directly) before code analysis and follow the skill's final format. Native skill-loading events are streamed only when reported by the provider. Custom agents receive the complete instructions actually read by wlog. Captured Git ranges replace the skill's branch/working-tree comparison inputs; the agent must not invent a base branch or compare against current HEAD.
 
-Ticket generation uses Markdown responses without Codex `--output-schema` or Claude `--json-schema`. Event streaming stays enabled and separate from final content. Claude is granted access to other recorded repositories with `--add-dir`; OpenCode uses focused [external-directory permissions](https://opencode.ai/docs/permissions/#external-directories) while keeping modification tools denied. Custom agents must return Markdown on stdout for `wl gt`; in `progress.mode: jsonl`, the final event is `{"type":"result","data":"# Ticket title\n\n...Markdown..."}`. The summary command continues to require its JSON response contract.
+Ticket generation uses plain Jira-ready text responses without Codex `--output-schema` or Claude `--json-schema`. Event streaming stays enabled and separate from final content. Claude is granted access to other recorded repositories with `--add-dir`; OpenCode uses focused [external-directory permissions](https://opencode.ai/docs/permissions/#external-directories) while keeping modification tools denied. Custom agents must return Jira-ready text on stdout for `wl gt`; in `progress.mode: jsonl`, the final event is `{"type":"result","data":"Ticket title\n\nDescription\n..."}`. The summary command continues to require its JSON response contract.
 
 Skill discovery follows the documented locations for [Codex](https://developers.openai.com/codex/skills), [Claude Code](https://code.claude.com/docs/en/skills), and [OpenCode](https://opencode.ai/docs/skills/), with `~/.codex/skills` also checked for existing Codex installations. Progress stays on stderr, and `wl generate-ticket --help` lists `generate-ticket, gt` as names for the same command.
 

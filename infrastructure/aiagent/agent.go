@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -126,6 +127,7 @@ func (a *commandAgent) run(ctx context.Context, request application.AIRequest, p
 	args := append([]string{}, a.config.Args...)
 	input := prompt
 	outputFile := ""
+	noteURLs := application.NoteURLs(request.Context)
 	var parser eventParser
 	var progressMu sync.Mutex
 	secrets := application.SecretValues(os.Environ())
@@ -157,6 +159,9 @@ func (a *commandAgent) run(ctx context.Context, request application.AIRequest, p
 		outputFile = filepath.Join(directory, "response.txt")
 		args = append([]string{"exec"}, args...)
 		args = append(args, "--sandbox", "read-only", "--ephemeral", "--skip-git-repo-check", "--color", "never", "--json")
+		if len(noteURLs) > 0 {
+			args = append(args, "--config", `web_search="live"`)
+		}
 		if responseSchema != "" {
 			schema := filepath.Join(directory, "schema.json")
 			if err := os.WriteFile(schema, []byte(responseSchema), 0600); err != nil {
@@ -169,6 +174,18 @@ func (a *commandAgent) run(ctx context.Context, request application.AIRequest, p
 	case "claude":
 		tools := "Read,Grep,Glob,Bash"
 		allowed := "Read,Grep,Glob,Bash(git diff *),Bash(git show *),Bash(git log *),Bash(git cat-file *)"
+		if len(noteURLs) > 0 {
+			tools += ",WebFetch"
+			seen := map[string]bool{}
+			for _, reference := range noteURLs {
+				parsed, _ := url.Parse(reference)
+				host := parsed.Hostname()
+				if !seen[host] {
+					allowed += ",WebFetch(domain:" + host + ")"
+					seen[host] = true
+				}
+			}
+		}
 		if request.Skill.Loaded && request.Skill.Native {
 			tools += ",Skill"
 			allowed += ",Skill(ticket-generator)"

@@ -7,7 +7,7 @@ import (
 
 func formatEnvironmentChanges(changes environment.Changes) string {
 	var b strings.Builder
-	b.WriteString("\n### Environment Changes\n\n")
+	b.WriteString("\nEnvironment Changes\n\n")
 	if changes.Status != "checked" {
 		b.WriteString("Environment variable check could not be completed.\n")
 	}

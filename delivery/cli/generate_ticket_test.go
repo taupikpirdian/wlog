@@ -67,19 +67,19 @@ func TestGenerateTicketAliasUsesIdenticalFlow(t *testing.T) {
 				if reader.weekCalls != 1 || reader.dailyCalls != 0 || reader.descriptionCalls != 1 || !agent.request.Context.Summary.Day.Date.IsZero() {
 					t.Fatalf("generation must use weekly tickets and whole-ticket context: reader=%+v request=%+v", reader, agent.request)
 				}
-				if strings.Contains(progress.String(), "Select worklog date") || strings.Contains(progress.String(), "Choose date") || !strings.Contains(progress.String(), "Select ticket:") {
+				if strings.Contains(progress.String(), "Select worklog date") || strings.Contains(progress.String(), "Choose date") || strings.Contains(progress.String(), "Additional context for this summary") || !strings.Contains(progress.String(), "Select ticket:") {
 					t.Fatalf("unexpected date selection: %q", progress.String())
 				}
 				if agent.request.Context.OutputLanguage != language || !strings.Contains(progress.String(), "Select output language:") {
 					t.Fatalf("language=%q progress=%q", agent.request.Context.OutputLanguage, progress.String())
 				}
-				if !strings.HasPrefix(out.String(), "# ") || strings.Contains(out.String(), "Time:") || strings.Contains(out.String(), "Checking installed") {
+				if strings.HasPrefix(out.String(), "# ") || strings.Contains(out.String(), "Time:") || strings.Contains(out.String(), "Checking installed") {
 					t.Fatalf("wrong Jira output: %q", out.String())
 				}
 				if found && (out.String() != skillTicketFixture || strings.Contains(out.String(), "### Background") || !strings.Contains(progress.String(), "✓ ticket-generator skill loaded by wlog")) {
 					t.Fatalf("skill artifact or progress changed: %q %q", out.String(), progress.String())
 				}
-				if !found && !strings.Contains(out.String(), "### Background") {
+				if !found && !strings.Contains(out.String(), "Description\n") {
 					t.Fatal("built-in fallback output lost")
 				}
 				if !strings.Contains(progress.String(), "✓ Jira ticket generated.") {
@@ -100,7 +100,7 @@ func TestGenerateTicketAliasUsesIdenticalFlow(t *testing.T) {
 }
 
 func TestGenerateTicketPreservesSkillOmissionOfQAImpact(t *testing.T) {
-	content := "# [REFACTOR] Internal rename\n\n## Description\nNo QA impact — internal change, no observable behavior change.\n\n## In Scope\n- Rename internal helper\n"
+	content := "[REFACTOR] Internal rename\n\nDescription\nNo QA impact — internal change, no observable behavior change.\n\nIn Scope\n- Rename internal helper\n"
 	reader := &enhancedSummaryStub{value: application.TicketAIContext{AllTicketWorklogs: dashboard.Snapshot{Activities: []dashboard.Activity{{Type: "GIT_COMMIT", Repository: "/database/repo", Hash: "aaa"}}}}}
 	config := &configMemory{config: bootstrap.Config{AI: bootstrap.AIConfig{Enabled: true, Provider: "codex"}}}
 	agent := &cliAgentFake{ticketContent: &content}

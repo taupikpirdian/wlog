@@ -12,7 +12,7 @@ import (
 	application "github.com/taupikpirdian/wlog/application/summary"
 )
 
-const markdownTicket = "# [FEATURE] Validate authorization input\n\n## Description\nValidate captured input.\n\n## Goal\nReject invalid input.\n\n## In Scope\n- Validation\n\n## Out of Scope\n- Deployment\n\n## QA Impact\n| No | Area | What to check | Expected | Owner |\n|----|------|---------------|----------|-------|\n| 1 | Auth | Empty input | Rejected | QA Engineer |\n\n## Acceptance Criteria\n- Empty input is rejected\n"
+const markdownTicket = "[FEATURE] Validate authorization input\n\nDescription\nValidate captured input.\n\nGoal\nReject invalid input.\n\nIn Scope\n- Validation\n\nOut of Scope\n- Deployment\n\nQA Impact\n|| No || Area || What to check || Expected || Owner ||\n| 1 | Auth | Empty input | Rejected | QA Engineer |\n\nAcceptance Criteria\n- Empty input is rejected\n"
 
 func TestTicketMarkdownTransportPreservesSkillArtifact(t *testing.T) {
 	for _, provider := range []string{"codex", "claude", "opencode", "custom"} {

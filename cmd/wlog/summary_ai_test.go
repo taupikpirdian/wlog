@@ -34,7 +34,7 @@ func (a *integrationAgent) GenerateTicket(_ context.Context, request application
 	for _, repo := range request.Context.Repositories {
 		progress(application.ProgressEvent{Provider: "custom", Type: application.ProgressTool, RepositoryPath: repo.Path, Message: "Inspecting supplied diff"})
 	}
-	return &application.GeneratedTicket{Content: "# Recorded ticket title\n\n### Background\nRecorded changes\n\n### Scope\n- Update value\n"}, nil
+	return &application.GeneratedTicket{Content: "Recorded ticket title\n\nDescription\nRecorded changes\n\nScope\n- Update value\n"}, nil
 }
 
 func (a *integrationAgent) Capabilities() application.AICapabilities {
@@ -145,7 +145,8 @@ func TestAISummaryReadsDatabaseRepositoriesOutsideCurrentDirectory(t *testing.T)
 	var out, progress bytes.Buffer
 	root.SetOut(&out)
 	root.SetErr(&progress)
-	root.SetIn(strings.NewReader("5\n1\ny\n2\n"))
+	extraContext := "Callback investigation is incomplete.\n\nCheck the recorded failure before assuming root cause."
+	root.SetIn(strings.NewReader("5\n1\ny\n2\n" + extraContext + "\n.\n"))
 	root.SetArgs([]string{"summary"})
 	if err := root.Execute(); err != nil {
 		t.Fatal(err)
@@ -155,6 +156,9 @@ func TestAISummaryReadsDatabaseRepositoriesOutsideCurrentDirectory(t *testing.T)
 	}
 	seen := map[string]bool{}
 	for _, request := range agent.requests {
+		if request.Context.AdditionalContext != extraContext {
+			t.Fatalf("additional context missing: %q", request.Context.AdditionalContext)
+		}
 		if request.Context.Summary.EnvironmentChanges.Status != "checked" || len(request.Context.Summary.EnvironmentChanges.NewVariables) != 1 || request.Context.Summary.EnvironmentChanges.NewVariables[0] != "CAPTURED_ENV" {
 			t.Fatalf("missing authoritative detector result: %+v", request.Context.Summary.EnvironmentChanges)
 		}
@@ -196,6 +200,14 @@ func TestAISummaryReadsDatabaseRepositoriesOutsideCurrentDirectory(t *testing.T)
 		}
 	}
 
+	var activityCount, storedContext int
+	if err := db.QueryRow(`SELECT count(*) FROM work_activities`).Scan(&activityCount); err != nil || activityCount != 2 {
+		t.Fatalf("AI generation mutated activities: count=%d error=%v", activityCount, err)
+	}
+	if err := db.QueryRow(`SELECT count(*) FROM work_activities WHERE description = ?`, extraContext).Scan(&storedContext); err != nil || storedContext != 0 {
+		t.Fatalf("additional context persisted: count=%d error=%v", storedContext, err)
+	}
+
 	// The exact same captured ranges are checked when AI is declined.
 	out.Reset()
 	progress.Reset()
@@ -226,11 +238,11 @@ func TestAISummaryReadsDatabaseRepositoriesOutsideCurrentDirectory(t *testing.T)
 	if err := root.Execute(); err != nil {
 		t.Fatal(err)
 	}
-	if len(agent.requests) != 1 || strings.Contains(progress.String(), "Choose date") || !strings.Contains(progress.String(), "OOT-1") || !strings.Contains(progress.String(), "2h") || !strings.HasPrefix(out.String(), "# Recorded ticket title\n") {
+	if len(agent.requests) != 1 || strings.Contains(progress.String(), "Choose date") || !strings.Contains(progress.String(), "OOT-1") || !strings.Contains(progress.String(), "2h") || !strings.HasPrefix(out.String(), "Recorded ticket title\n") {
 		t.Fatalf("weekly ticket generation: requests=%+v output=%q progress=%q", agent.requests, out.String(), progress.String())
 	}
 	for _, request := range agent.requests {
-		if !request.Context.TicketOnly || !request.Context.Summary.Day.Date.IsZero() || request.Context.OutputLanguage != application.LanguageEnglish || len(request.Context.AllTicketWorklogs.Sessions) != 2 || len(request.Context.Repositories) != 2 {
+		if request.Context.AdditionalContext != "" || !request.Context.TicketOnly || !request.Context.Summary.Day.Date.IsZero() || request.Context.OutputLanguage != application.LanguageEnglish || len(request.Context.AllTicketWorklogs.Sessions) != 2 || len(request.Context.Repositories) != 2 {
 			t.Fatalf("incorrect ticket-wide context: %+v", request)
 		}
 		for _, repo := range request.Context.Repositories {

@@ -10,6 +10,13 @@ import (
 func openCodePermissions(request application.AIRequest) string {
 	bash := map[string]string{"*": "deny", "git diff *": "allow", "git show *": "allow", "git log *": "allow", "git cat-file *": "allow"}
 	permissions := map[string]any{"*": "deny", "read": "allow", "glob": "allow", "grep": "allow", "bash": bash}
+	if urls := application.NoteURLs(request.Context); len(urls) > 0 {
+		webfetch := map[string]string{"*": "deny"}
+		for _, reference := range urls {
+			webfetch[reference] = "allow"
+		}
+		permissions["webfetch"] = webfetch
+	}
 	if request.Skill.Loaded && request.Skill.Native {
 		permissions["skill"] = map[string]string{"*": "deny", "ticket-generator": "allow"}
 	}

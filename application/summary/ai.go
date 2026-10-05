@@ -30,6 +30,7 @@ type TicketAIContext struct {
 	Warnings          []string
 	TicketOnly        bool
 	OutputLanguage    OutputLanguage
+	AdditionalContext string `json:"additional_context,omitempty"`
 }
 type GitService interface {
 	ValidateRepository(context.Context, string) (string, error)

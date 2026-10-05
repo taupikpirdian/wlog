@@ -168,7 +168,7 @@ func TestTicketPromptFollowsSkillWithoutForcingWlogFormat(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		for _, text := range []string{"Read the ticket-generator skill instructions before analyzing code changes", "source of truth for title and ticket structure", "QA Impact", "Do NOT convert", "output_language: id", "Do not invent base_branch/doc_path"} {
+		for _, text := range []string{"Read the ticket-generator skill instructions before analyzing code changes", "applicable section structure, subject to the Jira output rules", "QA Impact", "Do NOT convert", "output_language: id", "Do not invent base_branch/doc_path"} {
 			if !strings.Contains(prompt, text) {
 				t.Fatalf("missing instruction %q", text)
 			}
@@ -186,7 +186,7 @@ func TestTicketPromptFollowsSkillWithoutForcingWlogFormat(t *testing.T) {
 		}
 	}
 	prompt, _ := application.BuildAIPrompt(application.AIRequest{Context: application.TicketAIContext{TicketOnly: true}})
-	if !strings.Contains(prompt, "NO TICKET-GENERATOR SKILL WAS LOADED") || !strings.Contains(prompt, "built-in") || !strings.Contains(prompt, "### Background") || strings.Contains(prompt, application.ResponseSchema) {
+	if !strings.Contains(prompt, "NO TICKET-GENERATOR SKILL WAS LOADED") || !strings.Contains(prompt, "built-in") || !strings.Contains(prompt, "Description\nConservative recorded context.") || strings.Contains(prompt, application.ResponseSchema) {
 		t.Fatal("missing fallback instructions")
 	}
 	prompt, _ = application.BuildAIPrompt(application.AIRequest{})
