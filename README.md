@@ -200,24 +200,29 @@ After selecting a date, select a ticket with worklog on that date, then answer `
 
 ```text
 Time:
-2h
+2h (3 commits)
 
+Generated for Logs:
 Detail:
 - Fix tax calculation
 - Check tax calculation
 
-Hasil:
+Result:
 -
 
 Dev By:
 developer@example.com
 ```
 
+Time includes the captured commit count for the selected date and ticket, including commits without a session: `1 commit` or `3 commits`. Zero counts are omitted. Counts come from stored activities, independently of AI output and whether Git evidence can be loaded.
+
 Time is the sum of the selected ticket's session durations within that date. Sessions crossing midnight are split between dates, and active sessions count up to the command's read time. Detail combines session titles, notes, and commit messages in chronological order, splitting multiline text into bullets and removing identical details after whitespace normalization. Notes and commits do not add tracked time. An empty date produces `0m` and `-` for Detail. Dates containing only unassigned evidence retain the date-wide non-AI summary because no ticket can be selected.
 
 Dev By comes from `git config user.email` in the current directory, falling back to `git config --global user.email` when empty or unset. If neither provides an email, it shows `-`. The selection menu is written to stderr; stdout contains only the summary, so you can also save it with `wl summary > summary.txt`.
 
 After a successful summary, a GitHub star invitation appears once at the end on stderr, separated by a blank line. It applies to AI and non-AI summaries and stays outside the copyable Jira output. Failed or canceled commands do not show it.
+
+AI output separates `Generated for Logs:` from `Generated for Details Ticket:`. The ticket heading is followed by `Powered by Enforge Skills, created by rfanazhari`, then a blank line before the generated content. The ticket section uses the same installed `ticket-generator` skill resolution and Markdown generation as `wl gt`, preserving its title, sections, and QA tables. It uses the complete recorded ticket history; the logs and commit count remain scoped to the selected date. If the skill is unavailable, the same explicit built-in fallback as `wl gt` applies. Summary generation performs the worklog analysis followed by one ticket generation invocation.
 
 ### Optional AI summary
 
@@ -250,7 +255,7 @@ ai:
         mode: stderr
 ```
 
-Custom agents receive the strict prompt on stdin unless an argument includes `{{prompt}}`. Arguments are passed directly to the executable, without shell interpretation. Custom agents must return only valid JSON matching the summary contract: `worklog.details`, `worklog.results`, and `ticket_description` with `background`, `problem_requirement`, `scope`, `expected_result`, and optional `technical_notes`. Details, scope, background, problem, and expected result must be nonempty; results may be `[]` when no outcome is supported. Factual fields such as duration, email, ticket, and date are excluded from the AI response. Invalid output produces an explicit error rather than a malformed summary.
+Custom agents receive the strict prompt on stdin unless an argument includes `{{prompt}}`. Arguments are passed directly to the executable, without shell interpretation. Custom agents must return only valid JSON matching the summary contract: `worklog.details`, `worklog.results`, and `ticket_description` with `background`, `problem_requirement`, `scope`, `expected_result`, and optional `technical_notes`. Details, scope, background, problem, and expected result must be nonempty; results may be `[]` when no outcome is supported. Factual fields such as duration, email, ticket, and date are excluded from the AI response. The subsequent ticket generation invocation returns Markdown using the same contract as `wl gt`. The structured `ticket_description` is retained for adapter compatibility but is replaced in the displayed output by this generated Markdown. Invalid or empty output produces an explicit error rather than a malformed summary.
 
 ### Environment Changes
 
@@ -313,7 +318,7 @@ wl generate-ticket
 wl gt
 ```
 
-Select a ticket directly from tickets with recorded worklogs in the current local Monday–Sunday week; there is no date selection. Each ticket appears once with its total tracked time for that week. The command reuses the existing AI configuration and repository/commit evidence pipeline and writes the final ticket Markdown, including its title, directly to stdout. Generation uses all recorded history for that ticket, including earlier weeks. Missing AI configuration can be completed in the same run. Worklogs-only generation still requires explicit consent when source code is unavailable. If this week has no ticket worklogs, the command reports this before asking for input or starting AI. `wl summary` retains its date selection and structured response contract.
+Select a ticket directly from tickets with recorded worklogs in the current local Monday–Sunday week; there is no date selection. Each ticket appears once with its total tracked time for that week. The command reuses the existing AI configuration and repository/commit evidence pipeline and writes the final ticket Markdown, including its title, directly to stdout. Generation uses all recorded history for that ticket, including earlier weeks. Missing AI configuration can be completed in the same run. Worklogs-only generation still requires explicit consent when source code is unavailable. If this week has no ticket worklogs, the command reports this before asking for input or starting AI. `wl summary` retains its date selection and structured worklog analysis, then uses the same skill-based ticket generation for its ticket section.
 
 `wl generate-ticket` and `wl gt` offer the same **Bahasa Indonesia** or **English** output-language selection as AI summaries, before any AI process starts. Press Enter to use Bahasa Indonesia.
 

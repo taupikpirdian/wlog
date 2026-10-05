@@ -155,7 +155,7 @@ func TestEnhancedSummaryFlows(t *testing.T) {
 		{"missing code declined", "5\n1\ny\n1\nn\n", true, true, false, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			reader := &enhancedSummaryStub{value: application.TicketAIContext{TicketKey: "OOT-1", Summary: application.Result{Day: domain.Day{Date: date, Seconds: 9000, Details: []string{"Recorded detail"}, HasWorklog: true}, Email: "database@example.com"}, AllTicketWorklogs: dashboard.Snapshot{Activities: []dashboard.Activity{{Type: "GIT_COMMIT", Repository: "/database/repo", Hash: "bbb", At: date.Add(time.Hour)}}}}}
+			reader := &enhancedSummaryStub{value: application.TicketAIContext{TicketKey: "OOT-1", Summary: application.Result{Day: domain.Day{Date: date, Seconds: 9000, CommitCount: 1, Details: []string{"Recorded detail"}, HasWorklog: true}, Email: "database@example.com"}, AllTicketWorklogs: dashboard.Snapshot{Activities: []dashboard.Activity{{Type: "GIT_COMMIT", Repository: "/database/repo", Hash: "bbb", At: date.Add(time.Hour)}}}}}
 			config := &configMemory{config: bootstrap.Config{DataDirectory: "/config"}}
 			if tc.configured {
 				config.config.AI = bootstrap.AIConfig{Enabled: true, Provider: "codex", Providers: map[string]bootstrap.AIProviderConfig{"codex": {Command: "codex"}}}
@@ -163,9 +163,10 @@ func TestEnhancedSummaryFlows(t *testing.T) {
 			agent := &cliAgentFake{}
 			factory := &cliFactoryFake{agent: agent}
 			git := &cliGitFake{missing: tc.missing}
+			skills := &skillsStub{found: true}
 			cmd := NewSummaryCommand(func(context.Context) (SummaryReader, func() error, error) {
 				return reader, func() error { return nil }, nil
-			}, SummaryAIOptions{Config: config, Git: git, Agents: factory})
+			}, SummaryAIOptions{Config: config, Git: git, Agents: factory, Skills: skills})
 			var out, prompts bytes.Buffer
 			cmd.SetOut(&out)
 			cmd.SetErr(&prompts)
@@ -183,10 +184,10 @@ func TestEnhancedSummaryFlows(t *testing.T) {
 			if tc.name == "AI No" && git.calls != 0 {
 				t.Fatal("non-AI flow queried code")
 			}
-			if !strings.Contains(out.String(), "Time:\n2h 30m") || !strings.Contains(out.String(), "Dev By:\ndatabase@example.com") {
+			if !strings.Contains(out.String(), "Time:\n2h 30m (1 commit)\n\nGenerated for Logs:") || !strings.Contains(out.String(), "Dev By:\ndatabase@example.com") {
 				t.Fatalf("factual fields changed: %q", out.String())
 			}
-			if tc.wantAI && !strings.Contains(out.String(), "### Background\nBackground") {
+			if tc.wantAI && (!strings.Contains(out.String(), "Generated for Details Ticket:\nPowered by Enforge Skills, created by rfanazhari\n\n"+skillTicketFixture) || agent.summaryCalls != 1 || agent.ticketCalls != 1 || skills.calls != 1) {
 				t.Fatalf("AI output=%q", out.String())
 			}
 			if tc.wantAI {
@@ -236,10 +237,51 @@ func TestConfigAICommandCustomArguments(t *testing.T) {
 	}
 }
 
+func TestSummaryTicketFallbackAndEmptyArtifact(t *testing.T) {
+	date := time.Date(2026, 10, 2, 0, 0, 0, 0, time.UTC)
+	for _, empty := range []bool{false, true} {
+		reader := &enhancedSummaryStub{value: application.TicketAIContext{
+			TicketKey:         "OOT-1",
+			Summary:           application.Result{Day: domain.Day{Date: date, HasWorklog: true}},
+			AllTicketWorklogs: dashboard.Snapshot{Activities: []dashboard.Activity{{Type: "GIT_COMMIT", Repository: "/repo", Hash: "bbb", At: date}}},
+		}}
+		config := &configMemory{config: bootstrap.Config{AI: bootstrap.AIConfig{Enabled: true, Provider: "codex"}}}
+		agent := &cliAgentFake{}
+		if empty {
+			content := " "
+			agent.ticketContent = &content
+		}
+		skills := &skillsStub{}
+		cmd := NewSummaryCommand(func(context.Context) (SummaryReader, func() error, error) {
+			return reader, func() error { return nil }, nil
+		}, SummaryAIOptions{Config: config, Git: &cliGitFake{}, Agents: &cliFactoryFake{agent: agent}, Skills: skills})
+		var out, progress bytes.Buffer
+		cmd.SetOut(&out)
+		cmd.SetErr(&progress)
+		cmd.SetIn(strings.NewReader("5\n1\ny\n2\n"))
+		cmd.SetArgs([]string{})
+		err := cmd.Execute()
+		if empty {
+			if err == nil || !strings.Contains(err.Error(), "empty Jira ticket") || strings.Contains(out.String(), "Generated for Logs:") || strings.Contains(progress.String(), "✓ Jira summary generated.") {
+				t.Fatalf("empty ticket reported success: error=%v output=%q progress=%q", err, out.String(), progress.String())
+			}
+		} else if err != nil || !strings.Contains(out.String(), "Generated for Details Ticket:\nPowered by Enforge Skills, created by rfanazhari\n\n# Ticket title\n") || !strings.Contains(progress.String(), "Using built-in wlog ticket-generation instructions") {
+			t.Fatalf("fallback: error=%v output=%q progress=%q", err, out.String(), progress.String())
+		}
+		if skills.calls != 1 || agent.ticketCalls != 1 || agent.summaryCalls != 1 || !agent.request.Context.TicketOnly {
+			t.Fatalf("wrong generation pipeline: agent=%+v skills=%+v", agent, skills)
+		}
+	}
+}
+
 func TestAIFormatterControlledFactsAndBullets(t *testing.T) {
-	result := application.AIResult{Context: application.TicketAIContext{TicketKey: "OOT-1", Summary: application.Result{Day: domain.Day{Date: time.Date(2026, 10, 2, 0, 0, 0, 0, time.UTC), Seconds: 7200}, Email: "real@example.com"}}, Response: application.AIResponse{Worklog: application.WorklogText{Details: []string{"Change", "Change"}, Results: []string{}}, TicketDescription: application.TicketDescription{Background: "Background", ProblemRequirement: "Requirement", Scope: []string{"Change"}, ExpectedResult: "Expected", TechnicalNotes: ""}}}
+	result := application.AIResult{
+		Context:  application.TicketAIContext{Summary: application.Result{Day: domain.Day{Seconds: 7200, CommitCount: 3}, Email: "real@example.com"}},
+		Response: application.AIResponse{Worklog: application.WorklogText{Details: []string{"Change", "Change"}}},
+		Ticket:   application.GeneratedTicket{Content: skillTicketFixture},
+	}
 	got := formatAISummary(result)
-	want := "Time:\n2h\n\nDetail:\n- Change\n\nHasil:\n-\n\nDev By:\nreal@example.com\n\n### Background\nBackground\n\n### Problem / Requirement\nRequirement\n\n### Scope\n- Change\n\n### Expected Result\nExpected\n"
+	want := "Time:\n2h (3 commits)\n\nGenerated for Logs:\nDetail:\n- Change\n\nResult:\n-\n\nDev By:\nreal@example.com\n\nGenerated for Details Ticket:\nPowered by Enforge Skills, created by rfanazhari\n\n" + skillTicketFixture
 	if got != want+"\n### Environment Changes\n\nEnvironment variable check could not be completed.\n" {
 		t.Fatalf("got=%q want=%q", got, want)
 	}

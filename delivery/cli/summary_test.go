@@ -18,16 +18,34 @@ func TestFormatSummary(t *testing.T) {
 		result application.Result
 		want   string
 	}{
-		{"full", application.Result{Day: domain.Day{Seconds: 7200, Details: []string{"Pekerjaan 1", "Pekerjaan 2", "Pekerjaan 3"}}, Email: "developer@example.com"}, "Time:\n2h\n\nDetail:\n- Pekerjaan 1\n- Pekerjaan 2\n- Pekerjaan 3\n\nHasil:\n-\n\nDev By:\ndeveloper@example.com\n"},
-		{"empty", application.Result{}, "Time:\n0m\n\nDetail:\n-\n\nHasil:\n-\n\nDev By:\n-\n"},
-		{"minutes and duplicates", application.Result{Day: domain.Day{Seconds: 6*3600 + 30*60 + 15, Details: []string{"Fix", "Fix", "  "}}, Email: "  "}, "Time:\n6h 30m\n\nDetail:\n- Fix\n\nHasil:\n-\n\nDev By:\n-\n"},
-		{"terminal controls", application.Result{Day: domain.Day{Details: []string{"\x1b[31mFix\x1b[0m"}}, Email: "\x1b[31mdev@example.com\x1b[0m"}, "Time:\n0m\n\nDetail:\n- Fix\n\nHasil:\n-\n\nDev By:\ndev@example.com\n"},
+		{"full", application.Result{Day: domain.Day{Seconds: 7200, Details: []string{"Pekerjaan 1", "Pekerjaan 2", "Pekerjaan 3"}}, Email: "developer@example.com"}, "Time:\n2h\n\nGenerated for Logs:\nDetail:\n- Pekerjaan 1\n- Pekerjaan 2\n- Pekerjaan 3\n\nResult:\n-\n\nDev By:\ndeveloper@example.com\n"},
+		{"empty", application.Result{}, "Time:\n0m\n\nGenerated for Logs:\nDetail:\n-\n\nResult:\n-\n\nDev By:\n-\n"},
+		{"minutes and duplicates", application.Result{Day: domain.Day{Seconds: 6*3600 + 30*60 + 15, Details: []string{"Fix", "Fix", "  "}}, Email: "  "}, "Time:\n6h 30m\n\nGenerated for Logs:\nDetail:\n- Fix\n\nResult:\n-\n\nDev By:\n-\n"},
+		{"terminal controls", application.Result{Day: domain.Day{Details: []string{"\x1b[31mFix\x1b[0m"}}, Email: "\x1b[31mdev@example.com\x1b[0m"}, "Time:\n0m\n\nGenerated for Logs:\nDetail:\n- Fix\n\nResult:\n-\n\nDev By:\ndev@example.com\n"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if got := formatSummary(tc.result); got != tc.want+"\n### Environment Changes\n\nEnvironment variable check could not be completed.\n" {
 				t.Fatalf("got=%q want=%q", got, tc.want)
 			}
 		})
+	}
+}
+
+func TestSummaryCommitCountRendering(t *testing.T) {
+	for _, tc := range []struct {
+		count int
+		want  string
+	}{
+		{0, "0m"},
+		{1, "0m (1 commit)"},
+		{3, "0m (3 commits)"},
+	} {
+		result := application.Result{Day: domain.Day{CommitCount: tc.count}}
+		for _, got := range []string{formatSummary(result), formatAISummary(application.AIResult{Context: application.TicketAIContext{Summary: result}})} {
+			if !strings.HasPrefix(got, "Time:\n"+tc.want+"\n\nGenerated for Logs:\n") {
+				t.Fatalf("count=%d output=%q", tc.count, got)
+			}
+		}
 	}
 }
 
@@ -86,7 +104,7 @@ func TestSummaryCommandSelectionAndOutput(t *testing.T) {
 			t.Fatalf("missing %q in %q", text, prompts.String())
 		}
 	}
-	want := "Time:\n2h\n\nDetail:\n- Fix\n\nHasil:\n-\n\nDev By:\ndev@example.com\n"
+	want := "Time:\n2h\n\nGenerated for Logs:\nDetail:\n- Fix\n\nResult:\n-\n\nDev By:\ndev@example.com\n"
 	if out.String() != want+"\n### Environment Changes\n\nEnvironment variable check could not be completed.\n" {
 		t.Fatalf("stdout=%q", out.String())
 	}

@@ -12,10 +12,11 @@ import (
 )
 
 type Day struct {
-	Date       time.Time
-	Seconds    int64
-	Details    []string
-	HasWorklog bool
+	Date        time.Time
+	Seconds     int64
+	CommitCount int
+	Details     []string
+	HasWorklog  bool
 }
 
 // WeekDates returns Monday through Sunday, including dates with no records.
@@ -97,6 +98,9 @@ func BuildDay(source dashboard.Snapshot, date, now time.Time, location *time.Loc
 			return Day{}, dashboard.ErrInvalidData
 		}
 		day.HasWorklog = true
+		if a.Type == "GIT_COMMIT" {
+			day.CommitCount++
+		}
 		details = append(details, detail{at: a.At, kind: 1, id: a.ID, text: a.Text})
 	}
 	sort.SliceStable(details, func(i, j int) bool {

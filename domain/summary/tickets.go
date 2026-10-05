@@ -71,6 +71,7 @@ func TicketsForWeek(source dashboard.Snapshot, now time.Time, location *time.Loc
 			total.Day.Date = dates[0]
 			total.Day.HasWorklog = true
 			total.Day.Seconds += ticket.Day.Seconds
+			total.Day.CommitCount += ticket.Day.CommitCount
 			byKey[ticket.Key] = total
 		}
 	}

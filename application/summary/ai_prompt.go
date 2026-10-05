@@ -33,7 +33,7 @@ STRICT RULES:
 `
 
 const summaryTaskPrompt = `Generate:
-1. Jira worklog Detail and Hasil, scoped ONLY to selected date + selected ticket. Only changes marked SelectedDate=true support implementation claims for that worklog. Other dates are context for the ticket description only. If no selected-date diff is available, describe only recorded selected-date activities conservatively, without claiming code verification.
+1. Jira worklog Detail and Result, scoped ONLY to selected date + selected ticket. Only changes marked SelectedDate=true support implementation claims for that worklog. Other dates are context for the ticket description only. If no selected-date diff is available, describe only recorded selected-date activities conservatively, without claiming code verification.
 2. Jira ticket description using all recorded worklogs and inspected changes for this ticket.
 Keep wording concise and engineering-focused. Merge duplicate activities. Avoid generic wording such as coding/development/fixing issue. Do not invent results; worklog.results may be [] when no result is supported.
 Background must be conservative when business context is limited. Problem / Requirement should describe the observed technical problem. Scope must match evidence. Expected Result describes expected behavior, not deployment. Technical Notes include only observed facts.

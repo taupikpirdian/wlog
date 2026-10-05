@@ -64,7 +64,7 @@ func TestSummaryCommandWithDatabaseAndGitEmail(t *testing.T) {
 	if err := root.Execute(); err != nil {
 		t.Fatal(err)
 	}
-	want := "Time:\n2h\n\nDetail:\n- Fix bug\n- Add regression test\n- Review code\n\nHasil:\n-\n\nDev By:\nintegration@example.com\n"
+	want := "Time:\n2h (1 commit)\n\nGenerated for Logs:\nDetail:\n- Fix bug\n- Add regression test\n- Review code\n\nResult:\n-\n\nDev By:\nintegration@example.com\n"
 	if out.String() != want+"\n### Environment Changes\n\nEnvironment variable check could not be completed.\n" {
 		t.Fatalf("stdout=%q want=%q", out.String(), want)
 	}

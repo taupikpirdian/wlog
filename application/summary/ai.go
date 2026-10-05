@@ -68,6 +68,7 @@ type AIAgentFactory interface {
 type AIResult struct {
 	Context  TicketAIContext
 	Response AIResponse
+	Ticket   GeneratedTicket
 }
 
 // CollectCode uses only captured ticket commit identities, not the current HEAD.

@@ -59,7 +59,7 @@ func TestBuildDayAggregationAndDetails(t *testing.T) {
 		},
 	}
 	day, err := BuildDay(source, date, now, time.UTC)
-	if err != nil || day.Seconds != 7200 || !day.HasWorklog {
+	if err != nil || day.Seconds != 7200 || day.CommitCount != 1 || !day.HasWorklog {
 		t.Fatalf("day=%+v err=%v", day, err)
 	}
 	if want := []string{"Pekerjaan 1", "Pekerjaan 2", "Pekerjaan 3", "Pekerjaan 4"}; !reflect.DeepEqual(day.Details, want) {
@@ -102,8 +102,26 @@ func TestBuildDayActivityWithoutSession(t *testing.T) {
 	date := time.Date(2026, 10, 2, 0, 0, 0, 0, time.UTC)
 	source := dashboard.Snapshot{Activities: []dashboard.Activity{{Type: "GIT_COMMIT", Text: "Fix bug", At: date.Add(time.Hour)}}}
 	day, err := BuildDay(source, date, date.Add(2*time.Hour), time.UTC)
-	if err != nil || !day.HasWorklog || day.Seconds != 0 || !reflect.DeepEqual(day.Details, []string{"Fix bug"}) {
+	if err != nil || !day.HasWorklog || day.Seconds != 0 || day.CommitCount != 1 || !reflect.DeepEqual(day.Details, []string{"Fix bug"}) {
 		t.Fatalf("day=%+v err=%v", day, err)
+	}
+}
+
+func TestBuildDayCommitCountUsesLocalDateAndReadTime(t *testing.T) {
+	location := time.FixedZone("WIB", 7*3600)
+	date := time.Date(2026, 10, 2, 0, 0, 0, 0, location)
+	now := date.Add(12 * time.Hour)
+	source := dashboard.Snapshot{Activities: []dashboard.Activity{
+		{Type: "GIT_COMMIT", Text: "Same subject", At: date.UTC()},
+		{Type: "GIT_COMMIT", Text: "Same subject", At: now},
+		{Type: "NOTE", Text: "Note", At: now},
+		{Type: "GIT_COMMIT", At: date.Add(-time.Second)},
+		{Type: "GIT_COMMIT", At: now.Add(time.Second)},
+		{Type: "GIT_COMMIT", At: date.AddDate(0, 0, 1)},
+	}}
+	day, err := BuildDay(source, date, now, location)
+	if err != nil || day.CommitCount != 2 || day.Seconds != 0 {
+		t.Fatalf("day=%+v error=%v", day, err)
 	}
 }
 

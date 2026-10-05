@@ -45,7 +45,7 @@ func TestTicketsActivityOnlyAndNoWorklog(t *testing.T) {
 		{TicketKey: "", Type: "GIT_COMMIT", Text: "Unassigned", At: date.Add(time.Hour)},
 	}}
 	tickets, err := TicketsForDay(source, date, date.Add(48*time.Hour), time.UTC)
-	if err != nil || len(tickets) != 1 || tickets[0].Day.Seconds != 0 {
+	if err != nil || len(tickets) != 1 || tickets[0].Day.Seconds != 0 || tickets[0].Day.CommitCount != 1 {
 		t.Fatalf("tickets=%+v err=%v", tickets, err)
 	}
 	tickets, err = TicketsForDay(source, date.AddDate(0, 0, 1), date.Add(48*time.Hour), time.UTC)

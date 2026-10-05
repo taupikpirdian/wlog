@@ -150,7 +150,7 @@ func TestAISummaryReadsDatabaseRepositoriesOutsideCurrentDirectory(t *testing.T)
 	if err := root.Execute(); err != nil {
 		t.Fatal(err)
 	}
-	if len(agent.requests) != 2 {
+	if len(agent.requests) != 3 {
 		t.Fatalf("requests=%+v", agent.requests)
 	}
 	seen := map[string]bool{}
@@ -160,6 +160,12 @@ func TestAISummaryReadsDatabaseRepositoriesOutsideCurrentDirectory(t *testing.T)
 		}
 		if request.Context.OutputLanguage != application.LanguageEnglish {
 			t.Fatalf("selected language lost between repositories: %q", request.Context.OutputLanguage)
+		}
+		if request.Context.TicketOnly {
+			if len(request.Context.Repositories) != 2 || request.Repository != nil {
+				t.Fatalf("ticket must use all repositories: %+v", request)
+			}
+			continue
 		}
 		canonical, _ := filepath.EvalSymlinks(request.WorkingDirectory)
 		seen[canonical] = true
@@ -178,7 +184,7 @@ func TestAISummaryReadsDatabaseRepositoriesOutsideCurrentDirectory(t *testing.T)
 	if !strings.Contains(progress.String(), "Repository 1/2") || !strings.Contains(progress.String(), "Repository 2/2") || !strings.Contains(progress.String(), "[Custom] → Inspecting supplied diff") {
 		t.Fatalf("progress=%q", progress.String())
 	}
-	if !strings.Contains(out.String(), "Time:\n2h") || !strings.Contains(out.String(), "Dev By:\ndeveloper@example.com") || strings.Contains(out.String(), "[Custom]") {
+	if !strings.Contains(out.String(), "Time:\n2h (2 commits)\n\nGenerated for Logs:") || !strings.Contains(out.String(), "Dev By:\ndeveloper@example.com") || strings.Contains(out.String(), "[Custom]") {
 		t.Fatalf("final output=%q", out.String())
 	}
 	if !strings.Contains(out.String(), "New environment variables:\n- CAPTURED_ENV\n") || strings.Count(out.String(), "- CAPTURED_ENV\n") != 1 {
@@ -202,7 +208,7 @@ func TestAISummaryReadsDatabaseRepositoriesOutsideCurrentDirectory(t *testing.T)
 	if err := plain.Execute(); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(out.String(), "New environment variables:\n- CAPTURED_ENV\n") || strings.Contains(out.String(), "HEAD_ONLY_ENV") || strings.Contains(out.String(), "private-fixture-value") || len(agent.requests) != 2 {
+	if !strings.Contains(out.String(), "New environment variables:\n- CAPTURED_ENV\n") || strings.Contains(out.String(), "HEAD_ONLY_ENV") || strings.Contains(out.String(), "private-fixture-value") || len(agent.requests) != 3 {
 		t.Fatalf("non-AI environment check=%q", out.String())
 	}
 

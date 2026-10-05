@@ -191,6 +191,9 @@ func runAIGeneration(cmd *cobra.Command, input *bufio.Reader, reader SummaryRead
 		ticket, err = application.GenerateTicketAI(ctx, value, config.AI, options.Agents, worklogsOnly, config.DataDirectory, options.Skills, progress)
 	} else {
 		result, err = application.GenerateAI(ctx, value, config.AI, options.Agents, worklogsOnly, config.DataDirectory, progress)
+		if err == nil {
+			result.Ticket, err = application.GenerateTicketAI(ctx, value, config.AI, options.Agents, worklogsOnly, config.DataDirectory, options.Skills, progress)
+		}
 	}
 	if renderErr := renderer.Err(); renderErr != nil {
 		return renderErr

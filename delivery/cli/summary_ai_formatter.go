@@ -30,23 +30,13 @@ func formatAISummary(result application.AIResult) string {
 	if email == "" {
 		email = "-"
 	}
-	fmt.Fprintf(&b, "Time:\n%s\n\nDetail:\n", dailyDuration(result.Context.Summary.Day.Seconds))
+	fmt.Fprintf(&b, "Time:\n%s\n\nGenerated for Logs:\nDetail:\n", summaryDuration(result.Context.Summary.Day))
 	writeSummaryBullets(&b, result.Response.Worklog.Details)
-	b.WriteString("\nHasil:\n")
+	b.WriteString("\nResult:\n")
 	writeSummaryBullets(&b, result.Response.Worklog.Results)
 	fmt.Fprintf(&b, "\nDev By:\n%s\n\n", email)
-	b.WriteString(formatTicketDescription(result.Response.TicketDescription))
+	b.WriteString("Generated for Details Ticket:\nPowered by Enforge Skills, created by rfanazhari\n\n")
+	b.WriteString(result.Ticket.Content)
 	b.WriteString(formatEnvironmentChanges(result.Context.Summary.EnvironmentChanges))
-	return b.String()
-}
-
-func formatTicketDescription(description application.TicketDescription) string {
-	var b strings.Builder
-	fmt.Fprintf(&b, "### Background\n%s\n\n### Problem / Requirement\n%s\n\n### Scope\n", safeText(description.Background), safeText(description.ProblemRequirement))
-	writeSummaryBullets(&b, description.Scope)
-	fmt.Fprintf(&b, "\n### Expected Result\n%s\n", safeText(description.ExpectedResult))
-	if strings.TrimSpace(description.TechnicalNotes) != "" {
-		fmt.Fprintf(&b, "\n### Technical Notes\n%s\n", safeText(description.TechnicalNotes))
-	}
 	return b.String()
 }
