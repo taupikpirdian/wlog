@@ -8,6 +8,7 @@ import (
 	"time"
 
 	application "github.com/taupikpirdian/wlog/application/session"
+	"github.com/taupikpirdian/wlog/domain/activity"
 	domain "github.com/taupikpirdian/wlog/domain/session"
 )
 
@@ -99,12 +100,26 @@ func (s *SQLiteSessionStore) Start(ctx context.Context, value domain.Session, pr
 		err = conn.QueryRowContext(ctx, `INSERT INTO work_sessions(ticket_id,title,repository,started_at,status,created_at,updated_at)
  VALUES (?,?,?,?,'ACTIVE',?,?) RETURNING id`, value.TicketID, value.Title, value.Repository,
 			value.StartedAt.UTC().Format(time.RFC3339Nano), value.StartedAt.UTC().Format(time.RFC3339Nano), value.StartedAt.UTC().Format(time.RFC3339Nano)).Scan(&value.ID)
-		return err
+		if err != nil {
+			return err
+		}
+		return insertSessionNote(ctx, conn, value)
 	})
 	if err != nil {
 		return domain.Session{}, fmt.Errorf("start session: %w", err)
 	}
 	return value, nil
+}
+
+func insertSessionNote(ctx context.Context, conn *sql.Conn, value domain.Session) error {
+	note, err := activity.NewNote(value.Title, value, value.StartedAt)
+	if err != nil {
+		return err
+	}
+	_, err = conn.ExecContext(ctx, `INSERT INTO work_activities(ticket_id,session_id,type,description,repository,created_at)
+ VALUES (?,?,?,?,?,?)`, note.TicketID, note.SessionID, activity.NoteType, note.Description, note.Repository,
+		note.CreatedAt.Format(time.RFC3339Nano))
+	return err
 }
 
 func completeSession(ctx context.Context, conn *sql.Conn, value domain.Session) error {

@@ -44,7 +44,7 @@ func TestNotesPersistContentAndPreserveSession(t *testing.T) {
 			t.Fatal("unexpected Git metadata")
 		}
 	}
-	assertNoteCount(t, db, 2)
+	assertNoteCount(t, db, 3)
 	var status, title, start string
 	var end sql.NullString
 	var duration sql.NullInt64
@@ -60,7 +60,7 @@ func TestNotesPersistContentAndPreserveSession(t *testing.T) {
 	if _, err := service.AddNote(ctx, "After stop"); !errors.Is(err, session.ErrNoActive) {
 		t.Fatalf("no-active error=%v", err)
 	}
-	assertNoteCount(t, db, 2)
+	assertNoteCount(t, db, 3)
 }
 
 func TestNoteSnapshotConflictsAndRepository(t *testing.T) {
@@ -96,7 +96,7 @@ func TestNoteSnapshotConflictsAndRepository(t *testing.T) {
 	if _, err := store.AddNote(ctx, value, first); !errors.Is(err, session.ErrConflict) {
 		t.Fatalf("switched snapshot=%v", err)
 	}
-	assertNoteCount(t, db, 0)
+	assertNoteCount(t, db, 2)
 	if _, err := db.Exec(`UPDATE work_sessions SET repository='/session/repo' WHERE id=?`, second.ID); err != nil {
 		t.Fatal(err)
 	}
@@ -134,7 +134,7 @@ func TestNoteValidationRollbackAndCancellation(t *testing.T) {
 	if _, err := service.AddNote(ctx, "Reject"); err == nil {
 		t.Fatal("expected insert failure")
 	}
-	assertNoteCount(t, db, 0)
+	assertNoteCount(t, db, 1)
 	if _, err := db.Exec(`DROP TRIGGER reject_note`); err != nil {
 		t.Fatal(err)
 	}
@@ -148,7 +148,7 @@ func TestNoteValidationRollbackAndCancellation(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected cancelled commit")
 	}
-	assertNoteCount(t, db, 0)
+	assertNoteCount(t, db, 1)
 	if _, err := service.AddNote(ctx, "At start"); err != nil {
 		t.Fatalf("database unusable after rollback: %v", err)
 	}
@@ -190,7 +190,7 @@ func TestConcurrentNotes(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	assertNoteCount(t, db, 2)
+	assertNoteCount(t, db, 3)
 }
 
 func assertNoteCount(t *testing.T, db *sql.DB, expected int) {

@@ -194,3 +194,55 @@ func assertOneWinner(t *testing.T, results <-chan error) {
 		t.Fatalf("winners=%d conflicts=%d", winners, conflicts)
 	}
 }
+
+func TestStartRecordsInitialNoteAtomically(t *testing.T) {
+	ctx := context.Background()
+	db, _ := sessionDatabase(t)
+	at := time.Date(2026, 10, 5, 9, 0, 0, 0, time.UTC)
+	pattern, _ := ticket.NewKeyPattern(`OOT-[0-9]+`)
+	service := application.NewService(NewSQLiteSessionStore(db), pattern, func() time.Time { return at }, func(context.Context) string { return "/work/backend" })
+	first, err := service.Start(ctx, "OOT-3842", "  meeting be  ", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertInitialSessionNote(t, db, first)
+	if _, err := db.Exec(`CREATE TRIGGER reject_initial_note BEFORE INSERT ON work_activities WHEN NEW.description='reject note' BEGIN SELECT RAISE(ABORT,'injected failure'); END`); err != nil {
+		t.Fatal(err)
+	}
+	at = at.Add(time.Minute)
+	if _, err := service.Start(ctx, "OOT-3843", "reject note", &first); err == nil {
+		t.Fatal("expected note insertion failure")
+	}
+	active, err := service.Active(ctx)
+	if err != nil || active == nil || active.ID != first.ID {
+		t.Fatalf("previous session not restored: %+v %v", active, err)
+	}
+	for _, table := range []string{"tickets", "work_sessions", "work_activities"} {
+		var count int
+		if err := db.QueryRow(`SELECT count(*) FROM ` + table).Scan(&count); err != nil || count != 1 {
+			t.Fatalf("%s leaked rows: %d %v", table, count, err)
+		}
+	}
+	second, err := service.Start(ctx, "OOT-3842", "follow-up", &first)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertInitialSessionNote(t, db, second)
+	assertNoteCount(t, db, 2)
+}
+
+func assertInitialSessionNote(t *testing.T, db *sql.DB, value domain.Session) {
+	t.Helper()
+	var ticketID int64
+	var description, created string
+	var repository sql.NullString
+	if err := db.QueryRow(`SELECT ticket_id,description,repository,created_at FROM work_activities WHERE session_id=? AND type='NOTE'`, value.ID).Scan(&ticketID, &description, &repository, &created); err != nil {
+		t.Fatal(err)
+	}
+	if ticketID != value.TicketID || description != value.Title || created != value.StartedAt.UTC().Format(time.RFC3339Nano) {
+		t.Fatalf("initial note: ticket=%d description=%q created=%q session=%+v", ticketID, description, created, value)
+	}
+	if value.Repository == nil && repository.Valid || value.Repository != nil && (!repository.Valid || repository.String != *value.Repository) {
+		t.Fatalf("note repository: %v session=%+v", repository, value)
+	}
+}

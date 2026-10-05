@@ -65,12 +65,16 @@ func TestManualCompositionLifecycleOnTemporaryDatabase(t *testing.T) {
 	if got := execute(); !strings.Contains(got, "Duration: 1h") || !strings.Contains(got, "Total        3h") {
 		t.Fatal(got)
 	}
-	if got := execute("today"); !strings.Contains(got, "09:00  START   OOT-1") || !strings.Contains(got, "11:00  STOP    OOT-1") || !strings.Contains(got, "12:00  NOTE    OOT-2  Investigate") {
+	if got := execute("today"); !strings.Contains(got, "09:00  START   OOT-1") || !strings.Contains(got, "11:00  STOP    OOT-1") || !strings.Contains(got, "11:00  NOTE    OOT-2  Continue") || !strings.Contains(got, "12:00  NOTE    OOT-2  Investigate") {
 		t.Fatal(got)
 	}
 	now = now.Add(time.Hour)
 	execute("stop")
 	if got := execute(); !strings.Contains(got, "No active session") || !strings.Contains(got, "Total        4h") {
+		t.Fatal(got)
+	}
+	execute("s", "OOT-3842", "meeting be")
+	if got := execute("today"); !strings.Contains(got, "13:00  NOTE    OOT-3842  meeting be") {
 		t.Fatal(got)
 	}
 	db, err := storage.OpenDatabase(ctx, path)

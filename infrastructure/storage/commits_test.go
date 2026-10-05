@@ -82,7 +82,7 @@ func TestCaptureMatchingMismatchFallbackAndUnassigned(t *testing.T) {
 	if err := db.QueryRow(`SELECT title FROM tickets WHERE id=?`, active.TicketID).Scan(&title); err != nil || title != "Master title" {
 		t.Fatalf("master title=%q error=%v", title, err)
 	}
-	assertNoteCount(t, db, 6)
+	assertNoteCount(t, db, 7)
 }
 
 func TestCaptureDuplicateRollbackAndIdentity(t *testing.T) {

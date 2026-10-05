@@ -343,6 +343,8 @@ The ticket is created automatically if it does not exist. The session title does
 
 Only one session can be active across the entire database, including when you switch repositories. If a session is active, `start` displays its details and requests `[Y/n]` confirmation in an interactive terminal. Enter, `y`, or `yes` atomically completes the previous session and starts the new one; `n` or `no` cancels. Piped input and EOF do not provide confirmation.
 
+Starting a session also records its title as a `NOTE` at the session's start time, including when using `--since`. The note inherits the session's ticket and repository and appears immediately in `wl today`. The session and its initial note are saved in one transaction.
+
 Complete the active session:
 
 ```sh

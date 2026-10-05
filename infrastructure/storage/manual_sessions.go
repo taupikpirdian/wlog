@@ -33,8 +33,14 @@ func (s *SQLiteSessionStore) InsertManual(ctx context.Context, value domain.Sess
 			end = &formatted
 		}
 		at := observedAt.UTC().Format(time.RFC3339Nano)
-		return conn.QueryRowContext(ctx, `INSERT INTO work_sessions(ticket_id,title,repository,started_at,ended_at,duration_seconds,status,created_at,updated_at)
- VALUES(?,?,?,?,?,?,?,?,?) RETURNING id`, value.TicketID, value.Title, value.Repository, value.StartedAt.UTC().Format(time.RFC3339Nano), end, value.DurationSeconds, value.Status, at, at).Scan(&value.ID)
+		if err := conn.QueryRowContext(ctx, `INSERT INTO work_sessions(ticket_id,title,repository,started_at,ended_at,duration_seconds,status,created_at,updated_at)
+ VALUES(?,?,?,?,?,?,?,?,?) RETURNING id`, value.TicketID, value.Title, value.Repository, value.StartedAt.UTC().Format(time.RFC3339Nano), end, value.DurationSeconds, value.Status, at, at).Scan(&value.ID); err != nil {
+			return err
+		}
+		if value.Status == domain.Active {
+			return insertSessionNote(ctx, conn, value)
+		}
+		return nil
 	})
 	if err != nil {
 		return domain.Session{}, fmt.Errorf("add manual session: %w", err)

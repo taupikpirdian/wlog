@@ -55,7 +55,7 @@ func TestNoteCommandsWithSQLite(t *testing.T) {
 		t.Fatalf("opens=%d closes=%d", opens, closes)
 	}
 	var count int
-	if err := db.QueryRow(`SELECT count(*) FROM work_activities WHERE ticket_id=? AND session_id=? AND type='NOTE'`, active.TicketID, active.ID).Scan(&count); err != nil || count != 3 {
+	if err := db.QueryRow(`SELECT count(*) FROM work_activities WHERE ticket_id=? AND session_id=? AND type='NOTE'`, active.TicketID, active.ID).Scan(&count); err != nil || count != 4 {
 		t.Fatalf("notes=%d error=%v", count, err)
 	}
 	failedOutput := NewRootCommand(nil, "test", nil, factory)
@@ -64,7 +64,7 @@ func TestNoteCommandsWithSQLite(t *testing.T) {
 	if err := failedOutput.Execute(); !errors.Is(err, io.ErrClosedPipe) {
 		t.Fatalf("output error=%v", err)
 	}
-	if err := db.QueryRow(`SELECT count(*) FROM work_activities`).Scan(&count); err != nil || count != 4 {
+	if err := db.QueryRow(`SELECT count(*) FROM work_activities`).Scan(&count); err != nil || count != 5 {
 		t.Fatalf("output failure lost committed note: count=%d error=%v", count, err)
 	}
 	completed, _ := active.Complete(at)

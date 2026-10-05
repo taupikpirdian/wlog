@@ -50,6 +50,7 @@ func TestManualPersistenceProjectionAndEvidencePreservation(t *testing.T) {
 	if err != nil || active.EndedAt != nil || active.DurationSeconds != nil {
 		t.Fatalf("adjacent since: %+v %v", active, err)
 	}
+	assertInitialSessionNote(t, db, active)
 	_, err = svc.CreateCompleted(ctx, "OOT-3", "Earlier", "08:00", "09:00")
 	if err != nil {
 		t.Fatal(err)
@@ -59,7 +60,7 @@ func TestManualPersistenceProjectionAndEvidencePreservation(t *testing.T) {
 		t.Fatalf("active changed: %+v %v", still, err)
 	}
 	snapshot, err := NewSQLiteDashboardStore(db).ReadSnapshot(ctx)
-	if err != nil || len(snapshot.Sessions) != 3 || len(snapshot.Activities) != 1 {
+	if err != nil || len(snapshot.Sessions) != 3 || len(snapshot.Activities) != 2 {
 		t.Fatalf("projection sources: %+v %v", snapshot, err)
 	}
 }
@@ -219,5 +220,23 @@ func TestBackdatedAndOrdinaryStartRaceHasOneActiveSession(t *testing.T) {
 	var count int
 	if err := db.QueryRow(`SELECT count(*) FROM work_sessions WHERE status='ACTIVE'`).Scan(&count); err != nil || count != 1 {
 		t.Fatalf("active count=%d err=%v", count, err)
+	}
+}
+
+func TestBackdatedStartRollsBackWhenInitialNoteFails(t *testing.T) {
+	ctx := context.Background()
+	db, _ := sessionDatabase(t)
+	now := time.Date(2026, 10, 5, 12, 0, 0, 0, time.UTC)
+	if _, err := db.Exec(`CREATE TRIGGER reject_initial_note BEFORE INSERT ON work_activities BEGIN SELECT RAISE(ABORT,'injected failure'); END`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manualService(db, &now).StartSince(ctx, "OOT-3842", "meeting be", "09:00"); err == nil {
+		t.Fatal("expected note insertion failure")
+	}
+	for _, table := range []string{"tickets", "work_sessions", "work_activities"} {
+		var count int
+		if err := db.QueryRow(`SELECT count(*) FROM ` + table).Scan(&count); err != nil || count != 0 {
+			t.Fatalf("%s leaked rows: %d %v", table, count, err)
+		}
 	}
 }
