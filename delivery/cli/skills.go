@@ -17,10 +17,10 @@ func NewSkillsCommand(config bootstrap.ConfigLoader, resolver application.Ticket
 	root := &cobra.Command{Use: "skills", Short: "Inspect installed AI skills"}
 	var provider, repository string
 	check := &cobra.Command{
-		Use: "check <skill>", Short: "Check and read ticket-generator skill instructions", Args: cobra.ExactArgs(1),
+		Use: "check <skill>", Short: "Check and read installed skill instructions", Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if args[0] != "ticket-generator" {
-				return errors.New("supported skill: ticket-generator")
+			if args[0] != application.TicketGeneratorSkill && args[0] != application.RootCauseSummarySkill {
+				return errors.New("supported skills: ticket-generator, root-cause-summary")
 			}
 			if resolver == nil {
 				return errors.New("AI skill resolver is unavailable")
@@ -52,14 +52,14 @@ func NewSkillsCommand(config bootstrap.ConfigLoader, resolver application.Ticket
 				return err
 			}
 			renderer := NewProgressRenderer(cmd.ErrOrStderr())
-			skill, err := resolver.Resolve(cmd.Context(), provider, path, renderer.Render)
+			skill, err := resolver.Resolve(cmd.Context(), provider, path, args[0], renderer.Render)
 			if err != nil {
 				return err
 			}
 			if err := renderer.Err(); err != nil {
 				return err
 			}
-			if _, err := fmt.Fprintf(cmd.OutOrStdout(), "AI Provider: %s\nSkill: ticket-generator\n", providerLabel(provider)); err != nil {
+			if _, err := fmt.Fprintf(cmd.OutOrStdout(), "AI Provider: %s\nSkill: %s\n", providerLabel(provider), args[0]); err != nil {
 				return err
 			}
 			if len(skill.CheckedPaths) > 0 {
@@ -73,7 +73,7 @@ func NewSkillsCommand(config bootstrap.ConfigLoader, resolver application.Ticket
 				}
 			}
 			if !skill.Loaded {
-				return fmt.Errorf("ticket-generator could not be loaded: %s; install SKILL.md in one of the checked locations", safeText(skill.FailureReason))
+				return fmt.Errorf("%s could not be loaded: %s; install SKILL.md in one of the checked locations", args[0], safeText(skill.FailureReason))
 			}
 			_, err = fmt.Fprintf(cmd.OutOrStdout(), "Status: Loaded\nPath: %s\n", safeText(skill.Path))
 			return err

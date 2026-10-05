@@ -60,7 +60,23 @@ func markdownTableSeparator(line string) bool {
 	return true
 }
 
-func GenerateTicketAI(ctx context.Context, value TicketAIContext, config bootstrap.AIConfig, factory AIAgentFactory, worklogsOnly bool, fallbackDirectory string, skills TicketSkillResolver, progress ProgressHandler) (GeneratedTicket, error) {
+func GenerateTicketAI(ctx context.Context, value TicketAIContext, config bootstrap.AIConfig, factory AIAgentFactory, worklogsOnly bool, fallbackDirectory string, skills TicketSkillResolver, progress ProgressHandler, selectedSkill ...string) (GeneratedTicket, error) {
+	name, err := selectedTicketSkill(selectedSkill, TicketGeneratorSkill)
+	if err != nil {
+		return GeneratedTicket{}, err
+	}
+	return generateTicketAI(ctx, value, config, factory, worklogsOnly, fallbackDirectory, skills, progress, name, false)
+}
+
+func GenerateSummaryDetailsAI(ctx context.Context, value TicketAIContext, config bootstrap.AIConfig, factory AIAgentFactory, worklogsOnly bool, fallbackDirectory string, skills TicketSkillResolver, progress ProgressHandler, selectedSkill ...string) (GeneratedTicket, error) {
+	name, err := selectedTicketSkill(selectedSkill, RootCauseSummarySkill)
+	if err != nil {
+		return GeneratedTicket{}, err
+	}
+	return generateTicketAI(ctx, value, config, factory, worklogsOnly, fallbackDirectory, skills, progress, name, true)
+}
+
+func generateTicketAI(ctx context.Context, value TicketAIContext, config bootstrap.AIConfig, factory AIAgentFactory, worklogsOnly bool, fallbackDirectory string, skills TicketSkillResolver, progress ProgressHandler, skillName string, summaryDetails bool) (GeneratedTicket, error) {
 	if err := ctx.Err(); err != nil {
 		return GeneratedTicket{}, err
 	}
@@ -77,7 +93,7 @@ func GenerateTicketAI(ctx context.Context, value TicketAIContext, config bootstr
 	if len(value.Repositories) > 0 {
 		directory = value.Repositories[0].Path
 	}
-	var skill TicketSkill
+	skill := TicketSkill{Name: skillName}
 	if skills != nil {
 		paths := []string{directory}
 		if len(value.Repositories) > 0 {
@@ -87,12 +103,12 @@ func GenerateTicketAI(ctx context.Context, value TicketAIContext, config bootstr
 			}
 		}
 		for _, path := range paths {
-			skill, err = skills.Resolve(ctx, config.Provider, path, progress)
+			skill, err = skills.Resolve(ctx, config.Provider, path, skillName, progress)
 			if err != nil {
 				if ctx.Err() != nil {
 					return GeneratedTicket{}, ctx.Err()
 				}
-				emitProgress(progress, ProgressEvent{Type: ProgressWarning, Message: "Failed to load ticket-generator skill"})
+				emitProgress(progress, ProgressEvent{Type: ProgressWarning, Message: "Failed to load " + skillName + " skill"})
 				emitProgress(progress, ProgressEvent{Type: ProgressInfo, Message: "Using built-in wlog ticket generator"})
 				skill = TicketSkill{}
 				continue
@@ -104,9 +120,10 @@ func GenerateTicketAI(ctx context.Context, value TicketAIContext, config bootstr
 			}
 		}
 	} else {
-		emitProgress(progress, ProgressEvent{Type: ProgressWarning, Message: "ticket-generator skill resolver unavailable"})
+		emitProgress(progress, ProgressEvent{Type: ProgressWarning, Message: skillName + " skill resolver unavailable"})
 		emitProgress(progress, ProgressEvent{Type: ProgressInfo, Message: "Using built-in wlog ticket generator"})
 	}
+	skill.Name = skillName
 	agent, err := factory.Create(config)
 	if err != nil {
 		return GeneratedTicket{}, err
@@ -118,7 +135,7 @@ func GenerateTicketAI(ctx context.Context, value TicketAIContext, config bootstr
 	// One invocation inspects all recorded repositories and produces one ticket.
 	// Joining per-repository tickets would duplicate titles and corrupt skill format.
 	emitProgress(progress, ProgressEvent{Type: ProgressStatus, RepositoryPath: directory, Message: "Starting " + config.Provider})
-	ticket, err := ticketAgent.GenerateTicket(ctx, AIRequest{Context: value, WorkingDirectory: directory, WorklogsOnly: len(value.Repositories) == 0, Skill: skill}, progress)
+	ticket, err := ticketAgent.GenerateTicket(ctx, AIRequest{Context: value, WorkingDirectory: directory, WorklogsOnly: len(value.Repositories) == 0, Skill: skill, SummaryDetails: summaryDetails}, progress)
 	if err != nil {
 		return GeneratedTicket{}, err
 	}
@@ -126,4 +143,12 @@ func GenerateTicketAI(ctx context.Context, value TicketAIContext, config bootstr
 		return GeneratedTicket{}, err
 	}
 	return *ticket, nil
+}
+
+func selectedTicketSkill(selected []string, fallback string) (string, error) {
+	value := ""
+	if len(selected) > 0 {
+		value = selected[0]
+	}
+	return ResolveTicketSkillName(value, fallback)
 }

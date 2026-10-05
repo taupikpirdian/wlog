@@ -222,7 +222,17 @@ Dev By comes from `git config user.email` in the current directory, falling back
 
 After a successful summary, a GitHub star invitation appears once at the end on stderr, separated by a blank line. It applies to AI and non-AI summaries and stays outside the copyable Jira output. Failed or canceled commands do not show it.
 
-AI output separates `Generated for Logs:` from `Generated for Details Ticket:`. The ticket heading is followed by `Powered by Enforge Skills, created by rfanazhari`, then a blank line before the generated content. The ticket section uses the same installed `ticket-generator` skill resolution and Jira-ready generation as `wl gt`, preserving its title, sections, and QA tables. It uses the complete recorded ticket history; the logs and commit count remain scoped to the selected date. If the skill is unavailable, the same explicit built-in fallback as `wl gt` applies. Summary generation performs the worklog analysis followed by one ticket generation invocation.
+AI output separates `Generated for Logs:` from `Generated for Details Ticket:`. The ticket heading is followed by a blank line before the generated content. The ticket details section uses the installed `root-cause-summary` skill to produce Summary, Investigation, Root Cause (or Suspected Root Cause), Flow, and Conclusion with plain Jira section titles. It distinguishes symptoms, error propagation, and confirmed causes. It uses the complete recorded ticket history; the logs and commit count remain scoped to the selected date. If the skill is unavailable, built-in investigation instructions use the same sections and conservative findings. Summary generation performs the worklog analysis followed by one ticket generation invocation.
+
+Choose the installed skill with environment variables (no config-file edit is required):
+
+```bash
+export WLOG_SUMMARY_SKILL=root-cause-summary
+export WLOG_TICKET_SKILL=ticket-generator
+```
+
+`WLOG_SUMMARY_SKILL` applies only to the details ticket section of `wl summary`; `WLOG_TICKET_SKILL` applies to `wl gt` / `wl generate-ticket`. Supported values are `root-cause-summary` and `ticket-generator`. Unset or blank values use the defaults shown above. Invalid values stop generation with an actionable error. These variables select an installed skill; they do not install skills or load a `.env` file automatically.
+
 
 ### Optional AI summary
 
@@ -233,7 +243,7 @@ wl summary
 
 `wl config ai` selects Codex, Claude, OpenCode, or Custom, and saves its executable in the existing `~/.worklog/config.yaml`. Install and authenticate the selected CLI before generating. If you choose AI without configuring a provider, `wl summary` offers this same wizard and resumes after saving. Declining configuration falls back to the selected ticket's non-AI summary.
 
-Before AI generation, choose the output language: **Bahasa Indonesia** (1, default) or **English** (2). This choice applies to both the worklog summary and ticket description, across all repositories and providers. Prompts and the `ticket-generator` methodology use the selected language while preserving Jira headings, JSON field names, code identifiers, duration, and developer email. Non-AI summaries retain the original recorded worklog descriptions without translation.
+Before AI generation, choose the output language: **Bahasa Indonesia** (1, default) or **English** (2). This choice applies to both the worklog summary and ticket description, across all repositories and providers. Prompts and the selected skill methodology use the selected language while preserving Jira headings, JSON field names, code identifiers, duration, and developer email. Non-AI summaries retain the original recorded worklog descriptions without translation.
 
 After choosing the output language in `wl summary`, you can enter optional additional context for this generation. Paste investigation results, explanations, or document contents across multiple lines; blank lines between paragraphs are retained. Enter a single `.` on its own line to finish, press Enter before entering text to skip, or enter `q` before the first line to cancel. For long reports or logs with very long lines, enter `@/path/to/context.md` as the first line to read a UTF-8 text file directly. Relative paths, `~/` paths, and quoted paths with spaces are supported. File input finishes after that one line; no `.` terminator is needed, and the file is not modified. Pasted and file input are limited to 64 KiB.
 
@@ -336,7 +346,7 @@ wl generate-ticket
 wl gt
 ```
 
-Select a ticket directly from tickets with recorded worklogs in the current local Monday–Sunday week; there is no date selection. Each ticket appears once with its total tracked time for that week. The command reuses the existing AI configuration and repository/commit evidence pipeline and writes the final Jira-ready ticket text, including its title, directly to stdout. Generation uses all recorded history for that ticket, including earlier weeks. Missing AI configuration can be completed in the same run. Worklogs-only generation still requires explicit consent when source code is unavailable. If this week has no ticket worklogs, the command reports this before asking for input or starting AI. `wl summary` retains its date selection and structured worklog analysis, then uses the same skill-based ticket generation for its ticket section.
+Select a ticket directly from tickets with recorded worklogs in the current local Monday–Sunday week; there is no date selection. Each ticket appears once with its total tracked time for that week. The command reuses the existing AI configuration and repository/commit evidence pipeline and writes the final Jira-ready ticket text, including its title, directly to stdout. Generation uses all recorded history for that ticket, including earlier weeks. Missing AI configuration can be completed in the same run. Worklogs-only generation still requires explicit consent when source code is unavailable. If this week has no ticket worklogs, the command reports this before asking for input or starting AI. `wl summary` retains its date selection and structured worklog analysis, then uses `root-cause-summary` for its ticket details section.
 
 `wl generate-ticket` and `wl gt` offer the same **Bahasa Indonesia** or **English** output-language selection as AI summaries, before any AI process starts. Press Enter to use Bahasa Indonesia.
 
@@ -360,7 +370,7 @@ Ticket generation uses plain Jira-ready text responses without Codex `--output-s
 
 Skill discovery follows the documented locations for [Codex](https://developers.openai.com/codex/skills), [Claude Code](https://code.claude.com/docs/en/skills), and [OpenCode](https://opencode.ai/docs/skills/), with `~/.codex/skills` also checked for existing Codex installations. Progress stays on stderr, and `wl generate-ticket --help` lists `generate-ticket, gt` as names for the same command.
 
-To diagnose the actual resolver, run `wl skills check ticket-generator`. It reads the instructions and reports the configured provider, checked locations, and loaded path; unreadable or missing skills return a non-zero status with an actionable reason. Use `--provider codex` to select another provider or `--repository /path/to/project` to check a recorded repository. Skill discovery also checks the invocation directory (including `.agents/skills`) independently of the repository used for Git evidence. A skill installed only inside the wlog project is available when invoking from that project; install it in a provider's global skill directory to use it from any directory.
+To diagnose the actual resolver, run `wl skills check ticket-generator` for `wl gt`, or `wl skills check root-cause-summary` for `wl summary`. It reads the instructions and reports the configured provider, checked locations, and loaded path; unreadable or missing skills return a non-zero status with an actionable reason. Use `--provider codex` to select another provider or `--repository /path/to/project` to check a recorded repository. Skill discovery also checks the invocation directory (including `.agents/skills`) independently of the repository used for Git evidence. A skill installed only inside the wlog project is available when invoking from that project; install it in a provider's global skill directory to use it from any directory.
 
 ## Tracking Work Sessions
 

@@ -41,6 +41,7 @@ type AIRequest struct {
 	Repository       *RepositoryAIContext
 	WorkingDirectory string
 	WorklogsOnly     bool
+	SummaryDetails   bool
 	Skill            TicketSkill
 }
 type WorklogText struct {

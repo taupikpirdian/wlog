@@ -19,14 +19,14 @@ type skillsStub struct {
 	found bool
 }
 
-func (s *skillsStub) Resolve(_ context.Context, _ string, _ string, progress application.ProgressHandler) (application.TicketSkill, error) {
+func (s *skillsStub) Resolve(_ context.Context, _ string, _ string, name string, progress application.ProgressHandler) (application.TicketSkill, error) {
 	s.calls++
 	progress(application.ProgressEvent{Type: application.ProgressStatus, Message: "Checking installed AI skills"})
 	if s.found {
-		progress(application.ProgressEvent{Type: application.ProgressInfo, Message: "Found skill: ticket-generator"})
-		progress(application.ProgressEvent{Type: application.ProgressInfo, Message: "Reading ticket-generator skill instructions"})
-		progress(application.ProgressEvent{Type: application.ProgressSuccess, Message: "ticket-generator skill loaded by wlog"})
-		return application.TicketSkill{Name: "ticket-generator", Path: "/skills/ticket-generator/SKILL.md", Loaded: true, Native: true, Invocation: "$ticket-generator"}, nil
+		progress(application.ProgressEvent{Type: application.ProgressInfo, Message: "Found skill: " + name})
+		progress(application.ProgressEvent{Type: application.ProgressInfo, Message: "Reading " + name + " skill instructions"})
+		progress(application.ProgressEvent{Type: application.ProgressSuccess, Message: name + " skill loaded by wlog"})
+		return application.TicketSkill{Name: name, Path: "/skills/" + name + "/SKILL.md", Loaded: true, Native: true, Invocation: "$" + name}, nil
 	}
 	progress(application.ProgressEvent{Type: application.ProgressWarning, Message: "ticket-generator skill not found"})
 	progress(application.ProgressEvent{Type: application.ProgressInfo, Message: "Using built-in wlog ticket-generation instructions"})

@@ -43,7 +43,7 @@ func TestSkillAvailabilityReadingAndFallback(t *testing.T) {
 				return readSkill(path)
 			}}
 			var events []application.ProgressEvent
-			value, err := resolver.Resolve(context.Background(), tc.provider, repo, func(event application.ProgressEvent) { events = append(events, event) })
+			value, err := resolver.Resolve(context.Background(), tc.provider, repo, "ticket-generator", func(event application.ProgressEvent) { events = append(events, event) })
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -100,7 +100,7 @@ func TestSkillPathsAreProviderSpecific(t *testing.T) {
 				t.Fatal(err)
 			}
 			resolver := &Resolver{home: func() (string, error) { return home, nil }, readFile: readSkill}
-			skill, err := resolver.Resolve(context.Background(), provider, repo, nil)
+			skill, err := resolver.Resolve(context.Background(), provider, repo, "ticket-generator", nil)
 			if err != nil || !skill.Native || !skill.Loaded {
 				t.Fatalf("skill=%+v err=%v", skill, err)
 			}
@@ -141,12 +141,40 @@ func TestSkillInInvocationDirectoryIsReadOutsideTicketRepository(t *testing.T) {
 			}
 			reads := 0
 			resolver := &Resolver{home: func() (string, error) { return home, nil }, cwd: func() (string, error) { return cwd, nil }, readFile: func(path string) ([]byte, error) { reads++; return readSkill(path) }}
-			skill, err := resolver.Resolve(context.Background(), provider, repo, nil)
+			skill, err := resolver.Resolve(context.Background(), provider, repo, "ticket-generator", nil)
 			if err != nil || !skill.Loaded || skill.Path != path || reads != 1 || len(skill.CheckedPaths) == 0 {
 				t.Fatalf("skill=%+v reads=%d error=%v", skill, reads, err)
 			}
 			if repo == filepath.Dir(path) {
 				t.Fatal("test must keep source repository independent from skill location")
+			}
+		})
+	}
+}
+
+func TestRootCauseSkillResolutionAcrossProviders(t *testing.T) {
+	for _, provider := range []string{"codex", "claude", "opencode", "custom"} {
+		t.Run(provider, func(t *testing.T) {
+			repo, home := t.TempDir(), t.TempDir()
+			paths, _ := namedSkillPaths(provider, repo, home, application.RootCauseSummarySkill)
+			path := paths[0]
+			if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(path, []byte("ROOT CAUSE INSTRUCTIONS"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			resolver := &Resolver{home: func() (string, error) { return home, nil }, readFile: readSkill}
+			skill, err := resolver.Resolve(context.Background(), provider, repo, application.RootCauseSummarySkill, nil)
+			if err != nil || !skill.Loaded || skill.Name != application.RootCauseSummarySkill || skill.Path != path {
+				t.Fatalf("skill=%+v err=%v", skill, err)
+			}
+			if provider == "custom" {
+				if skill.Instructions != "ROOT CAUSE INSTRUCTIONS" {
+					t.Fatal("missing custom instructions")
+				}
+			} else if !strings.Contains(skill.Invocation, "root-cause-summary") || strings.Contains(skill.Invocation, "ticket-generator") {
+				t.Fatalf("wrong invocation: %s", skill.Invocation)
 			}
 		})
 	}

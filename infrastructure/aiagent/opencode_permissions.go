@@ -18,7 +18,7 @@ func openCodePermissions(request application.AIRequest) string {
 		permissions["webfetch"] = webfetch
 	}
 	if request.Skill.Loaded && request.Skill.Native {
-		permissions["skill"] = map[string]string{"*": "deny", "ticket-generator": "allow"}
+		permissions["skill"] = map[string]string{"*": "deny", request.Skill.NameOrDefault(): "allow"}
 	}
 	if request.Context.TicketOnly {
 		for _, operation := range []string{"diff", "show", "log", "cat-file"} {

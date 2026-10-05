@@ -187,7 +187,7 @@ func TestEnhancedSummaryFlows(t *testing.T) {
 			if !strings.Contains(out.String(), "Time:\n2h 30m (1 commit)\n\nGenerated for Logs:") || !strings.Contains(out.String(), "Dev By:\ndatabase@example.com") {
 				t.Fatalf("factual fields changed: %q", out.String())
 			}
-			if tc.wantAI && (!strings.Contains(out.String(), "Generated for Details Ticket:\nPowered by Enforge Skills, created by rfanazhari\n\n"+skillTicketFixture) || agent.summaryCalls != 1 || agent.ticketCalls != 1 || skills.calls != 1) {
+			if tc.wantAI && (!strings.Contains(out.String(), "Generated for Details Ticket:\n\n"+skillTicketFixture) || agent.summaryCalls != 1 || agent.ticketCalls != 1 || skills.calls != 1 || agent.request.Skill.Name != application.RootCauseSummarySkill) {
 				t.Fatalf("AI output=%q", out.String())
 			}
 			if tc.wantAI {
@@ -265,7 +265,7 @@ func TestSummaryTicketFallbackAndEmptyArtifact(t *testing.T) {
 			if err == nil || !strings.Contains(err.Error(), "empty Jira ticket") || strings.Contains(out.String(), "Generated for Logs:") || strings.Contains(progress.String(), "✓ Jira summary generated.") {
 				t.Fatalf("empty ticket reported success: error=%v output=%q progress=%q", err, out.String(), progress.String())
 			}
-		} else if err != nil || !strings.Contains(out.String(), "Generated for Details Ticket:\nPowered by Enforge Skills, created by rfanazhari\n\nTicket title\n") || !strings.Contains(progress.String(), "Using built-in wlog ticket-generation instructions") {
+		} else if err != nil || !strings.Contains(out.String(), "Generated for Details Ticket:\n\nTicket title\n") || !strings.Contains(progress.String(), "Using built-in wlog ticket-generation instructions") {
 			t.Fatalf("fallback: error=%v output=%q progress=%q", err, out.String(), progress.String())
 		}
 		if skills.calls != 1 || agent.ticketCalls != 1 || agent.summaryCalls != 1 || !agent.request.Context.TicketOnly {
@@ -281,8 +281,67 @@ func TestAIFormatterControlledFactsAndBullets(t *testing.T) {
 		Ticket:   application.GeneratedTicket{Content: skillTicketFixture},
 	}
 	got := formatAISummary(result)
-	want := "Time:\n2h (3 commits)\n\nGenerated for Logs:\nDetail:\n- Change\n\nResult:\n-\n\nDev By:\nreal@example.com\n\nGenerated for Details Ticket:\nPowered by Enforge Skills, created by rfanazhari\n\n" + skillTicketFixture
+	want := "Time:\n2h (3 commits)\n\nGenerated for Logs:\nDetail:\n- Change\n\nResult:\n-\n\nDev By:\nreal@example.com\n\nGenerated for Details Ticket:\n\n" + skillTicketFixture
 	if got != want+"\nEnvironment Changes\n\nEnvironment variable check could not be completed.\n" {
 		t.Fatalf("got=%q want=%q", got, want)
+	}
+}
+
+func TestSkillEnvironmentSelection(t *testing.T) {
+	for _, tc := range []struct {
+		name, summarySkill, ticketSkill, want string
+		ticketOnly, invalid                   bool
+	}{
+		{name: "summary default", want: "root-cause-summary"},
+		{name: "summary override", summarySkill: " ticket-generator ", ticketSkill: "invalid-other-command", want: "ticket-generator"},
+		{name: "ticket default", summarySkill: "invalid-other-command", want: "ticket-generator", ticketOnly: true},
+		{name: "ticket override", ticketSkill: "root-cause-summary", want: "root-cause-summary", ticketOnly: true},
+		{name: "invalid summary", summarySkill: "../invalid", invalid: true},
+		{name: "invalid ticket", ticketSkill: "unknown", ticketOnly: true, invalid: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("WLOG_SUMMARY_SKILL", tc.summarySkill)
+			t.Setenv("WLOG_TICKET_SKILL", tc.ticketSkill)
+			date := time.Date(2026, 10, 2, 0, 0, 0, 0, time.UTC)
+			reader := &enhancedSummaryStub{value: application.TicketAIContext{Summary: application.Result{Day: domain.Day{Date: date}}, AllTicketWorklogs: dashboard.Snapshot{Activities: []dashboard.Activity{{Type: "GIT_COMMIT", Repository: "/repo", Hash: "aaa", At: date}}}}}
+			config := &configMemory{config: bootstrap.Config{AI: bootstrap.AIConfig{Enabled: true, Provider: "codex"}}}
+			agent := &cliAgentFake{}
+			skills := &skillsStub{found: true}
+			open := func(context.Context) (SummaryReader, func() error, error) {
+				return reader, func() error { return nil }, nil
+			}
+			options := SummaryAIOptions{Config: config, Git: &cliGitFake{}, Agents: &cliFactoryFake{agent: agent}, Skills: skills}
+			cmd := NewSummaryCommand(open, options)
+			input := "5\n1\ny\n1\n\n"
+			if tc.ticketOnly {
+				cmd = NewGenerateTicketCommand(open, options)
+				input = "1\n1\n"
+			}
+			var out, progress bytes.Buffer
+			cmd.SetOut(&out)
+			cmd.SetErr(&progress)
+			cmd.SetIn(strings.NewReader(input))
+			cmd.SetArgs([]string{})
+			err := cmd.Execute()
+			if tc.invalid {
+				if err == nil || !strings.Contains(err.Error(), "unsupported AI skill") || agent.calls != 0 || skills.calls != 0 {
+					t.Fatalf("err=%v agent=%+v skills=%+v", err, agent, skills)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if agent.request.Skill.Name != tc.want || agent.request.Skill.Invocation != "$"+tc.want || agent.request.SummaryDetails == tc.ticketOnly {
+				t.Fatalf("wrong skill or task: %+v", agent.request)
+			}
+			prompt, err := application.BuildTicketPrompt(agent.request)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(prompt, "Native skill requested: $"+tc.want) {
+				t.Fatal("selected skill missing in prompt")
+			}
+		})
 	}
 }

@@ -35,7 +35,7 @@ func formatAISummary(result application.AIResult) string {
 	b.WriteString("\nResult:\n")
 	writeSummaryBullets(&b, result.Response.Worklog.Results)
 	fmt.Fprintf(&b, "\nDev By:\n%s\n\n", email)
-	b.WriteString("Generated for Details Ticket:\nPowered by Enforge Skills, created by rfanazhari\n\n")
+	b.WriteString("Generated for Details Ticket:\n\n")
 	b.WriteString(result.Ticket.Content)
 	b.WriteString(formatEnvironmentChanges(result.Context.Summary.EnvironmentChanges))
 	return b.String()

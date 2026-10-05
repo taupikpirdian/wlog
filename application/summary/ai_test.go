@@ -215,3 +215,33 @@ func TestTicketPromptHasNoSelectedDateScope(t *testing.T) {
 		}
 	}
 }
+
+func TestSummaryDetailsUsesRootCauseMethodology(t *testing.T) {
+	for _, loaded := range []bool{false, true} {
+		for _, native := range []bool{false, true} {
+			prompt, err := application.BuildTicketPrompt(application.AIRequest{Skill: application.TicketSkill{Name: application.RootCauseSummarySkill, Loaded: loaded, Native: native, Invocation: "$root-cause-summary", Instructions: "INVESTIGATION SKILL", Path: "/skills/root-cause-summary/SKILL.md"}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, required := range []string{"ROOT-CAUSE-SUMMARY IS ACTIVE", "Do not read RTK.md, AGENTS.md", "Suspected Root Cause", "Flow", "Conclusion", "deepest confirmed failure", "recorded investigation notes"} {
+				if !strings.Contains(prompt, required) {
+					t.Fatalf("missing %q", required)
+				}
+			}
+			for _, excluded := range []string{"TICKET-GENERATOR IS ACTIVE", "Native skill requested: $ticket-generator", "Acceptance Criteria", "Preserve required sections, including QA Impact"} {
+				if strings.Contains(prompt, excluded) {
+					t.Fatalf("implementation template leaked: %q", excluded)
+				}
+			}
+			if loaded && native && !strings.Contains(prompt, "Native skill requested: $root-cause-summary") {
+				t.Fatal("wrong native skill")
+			}
+			if loaded && !native && !strings.Contains(prompt, "INVESTIGATION SKILL") {
+				t.Fatal("missing skill instructions")
+			}
+			if !loaded && !strings.Contains(prompt, "built-in investigation instructions") {
+				t.Fatal("wrong fallback")
+			}
+		}
+	}
+}

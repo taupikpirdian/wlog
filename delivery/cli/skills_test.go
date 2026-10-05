@@ -16,7 +16,7 @@ type diagnosticSkillResolver struct {
 	provider, directory string
 }
 
-func (r *diagnosticSkillResolver) Resolve(_ context.Context, provider, directory string, progress application.ProgressHandler) (application.TicketSkill, error) {
+func (r *diagnosticSkillResolver) Resolve(_ context.Context, provider, directory, name string, progress application.ProgressHandler) (application.TicketSkill, error) {
 	r.provider, r.directory = provider, directory
 	progress(application.ProgressEvent{Type: application.ProgressStatus, Message: "Checking installed AI skills"})
 	return r.skill, nil

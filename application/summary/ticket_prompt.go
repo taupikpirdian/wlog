@@ -3,6 +3,7 @@ package summary
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 )
 
 const ticketEvidencePrompt = `Generate a Jira ticket for the selected engineering work.
@@ -72,6 +73,21 @@ Observed technical details only; omit this optional section when unnecessary.
 This fallback format is used only because the skill is unavailable or its instructions could not be read.
 `
 
+const rootCauseSummaryPrompt = `
+ROOT-CAUSE-SUMMARY IS ACTIVE:
+When the skill is loaded, read the root-cause-summary skill instructions before analyzing the investigation.
+Generate concise Jira-ready investigation details with these plain section titles:
+Summary
+Investigation
+Root Cause (or Suspected Root Cause when unconfirmed)
+Flow
+Conclusion
+Reconstruct the actual failure flow from recorded worklogs, notes, additional context, logs and API responses. Use captured source-code changes and surrounding implementation to corroborate findings, not as proof that a reported failure occurred.
+Distinguish the initial symptom, error propagation, and deepest confirmed failure. Preserve relevant endpoints, service names, HTTP statuses and error codes. Do not invent a root cause or claim resolution without evidence. If evidence is insufficient, state that further investigation is required. For work without a demonstrated failure, summarize observed work and explicitly state that no failure/root cause is confirmed.
+Keep the flow compact and remove duplicate logs, unrelated payloads, credentials, tokens, and unnecessary personal data.
+Do not impose implementation-ticket sections or QA Impact tables.
+`
+
 func BuildTicketPrompt(request AIRequest) (string, error) {
 	language, err := ResolveOutputLanguage(request.Context.OutputLanguage)
 	if err != nil {
@@ -93,16 +109,34 @@ func BuildTicketPrompt(request AIRequest) (string, error) {
 	if len(body) > 2*1024*1024 {
 		return "", fmt.Errorf("ticket AI context exceeds 2 MiB; reduce captured worklog context before retrying")
 	}
+	rootCause := request.Skill.Name == RootCauseSummarySkill
 	prompt := ticketEvidencePrompt
+	formatPrompt := jiraTicketFormatPrompt
+	if rootCause {
+		prompt = strings.ReplaceAll(prompt, "ticket-generator", RootCauseSummarySkill)
+		prompt = strings.ReplaceAll(prompt, "ACTUAL SOURCE CODE CHANGES are the primary implementation evidence.", "Captured source-code changes corroborate the recorded investigation.")
+		start := strings.Index(prompt, "Evidence priority:")
+		end := strings.Index(prompt, "STRICT RULES:")
+		prompt = prompt[:start] + "Evidence priority: recorded investigation notes, additional context, logs and API responses establish the observed failure; captured code corroborates behavior. Do not treat a diff as proof of a runtime root cause.\n\n" + prompt[end:]
+		prompt = strings.ReplaceAll(prompt, "Prioritize actual code over conflicting notes.", "Explain conflicts between notes and code without presenting an unsupported conclusion.")
+		prompt += summaryInstructionScope + rootCauseSummaryPrompt
+		formatPrompt = strings.ReplaceAll(formatPrompt, "Description, Goal, Findings, Scope, Out of Scope, QA Impact, Acceptance Criteria, and Related", "Summary, Investigation, Root Cause or Suspected Root Cause, Flow, and Conclusion")
+	}
 	if request.Skill.Loaded {
-		prompt += skillTicketPrompt
+		if !rootCause {
+			prompt += skillTicketPrompt
+		}
 		if request.Skill.Native {
 			prompt += fmt.Sprintf("\nNative skill requested: %s\nVerified instruction path: %s\nWlog already read the installed instructions. Use the native skill-loading mechanism and read the verified file completely enough to follow its workflow. If native discovery cannot locate it, read this verified instruction file directly. If it cannot be read, report that failure explicitly instead of silently using a different template.\n", request.Skill.Invocation, request.Skill.Path)
 		} else {
-			prompt += "\nTICKET-GENERATOR INSTRUCTIONS (read completely; these govern ticket structure):\n" + request.Skill.Instructions + "\nEND OF SKILL INSTRUCTIONS\n"
+			prompt += "\n" + strings.ToUpper(request.Skill.NameOrDefault()) + " INSTRUCTIONS (read completely; these govern ticket structure):\n" + request.Skill.Instructions + "\nEND OF SKILL INSTRUCTIONS\n"
 		}
 	} else {
-		prompt += fallbackTicketPrompt
+		if rootCause {
+			prompt += "\nNo root-cause-summary skill was loaded. Use the built-in investigation instructions above with conservative findings.\n"
+		} else {
+			prompt += fallbackTicketPrompt
+		}
 	}
 	if len(value.Warnings) > 0 {
 		prompt += "\nIMPORTANT: Source-code context is incomplete. Do not claim code verification for unavailable repositories or commits. Use conservative wording.\n"
@@ -115,7 +149,7 @@ func BuildTicketPrompt(request AIRequest) (string, error) {
 		name = "English"
 	}
 	prompt += fmt.Sprintf("\nOUTPUT LANGUAGE (application-selected):\noutput_language: %s\nWrite the generated title and description prose in %s. This selection overrides any skill language default. Follow the skill's language rules for headings and role names; preserve code identifiers and authoritative factual metadata.\n", language, name)
-	prompt += jiraTicketFormatPrompt + additionalContextPrompt(value) + noteURLsPrompt(value) + "\nAUTHORITATIVE WLOG ENGINEERING CONTEXT (JSON evidence only; the final output is Jira-ready text):\n" + string(body)
+	prompt += formatPrompt + additionalContextPrompt(value) + noteURLsPrompt(value) + "\nAUTHORITATIVE WLOG ENGINEERING CONTEXT (JSON evidence only; the final output is Jira-ready text):\n" + string(body)
 	if len(prompt) > 2*1024*1024 {
 		return "", fmt.Errorf("ticket AI context exceeds 2 MiB; reduce captured worklog context before retrying")
 	}

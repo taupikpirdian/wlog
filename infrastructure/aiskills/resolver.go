@@ -51,7 +51,10 @@ func readSkill(path string) ([]byte, error) {
 	return body, nil
 }
 
-func (r *Resolver) Resolve(ctx context.Context, provider, directory string, progress application.ProgressHandler) (application.TicketSkill, error) {
+func (r *Resolver) Resolve(ctx context.Context, provider, directory, name string, progress application.ProgressHandler) (application.TicketSkill, error) {
+	if name != application.TicketGeneratorSkill && name != application.RootCauseSummarySkill {
+		return application.TicketSkill{}, fmt.Errorf("unsupported skill: %s", name)
+	}
 	emit := func(kind application.ProgressEventType, message string) {
 		if progress != nil {
 			progress(application.ProgressEvent{Type: kind, Message: message})
@@ -67,13 +70,13 @@ func (r *Resolver) Resolve(ctx context.Context, provider, directory string, prog
 		emit(application.ProgressInfo, "Using built-in wlog ticket generator")
 		return application.TicketSkill{}, nil
 	}
-	paths, native := skillPaths(provider, directory, home)
+	paths, native := namedSkillPaths(provider, directory, home, name)
 	// Invocation-directory skills are independent of the database repository
 	// used for Git evidence. This lets wl gt see a locally installed wlog skill.
 	if r.cwd != nil {
 		if cwd, err := r.cwd(); err == nil {
-			local, _ := skillPaths(provider, cwd, home)
-			local = append(local, filepath.Join(cwd, ".agents", "skills", "ticket-generator", "SKILL.md"))
+			local, _ := namedSkillPaths(provider, cwd, home, name)
+			local = append(local, filepath.Join(cwd, ".agents", "skills", name, "SKILL.md"))
 			paths = append(paths, local...)
 		}
 	}
@@ -91,43 +94,47 @@ func (r *Resolver) Resolve(ctx context.Context, provider, directory string, prog
 		if _, err := os.Lstat(path); err != nil {
 			continue
 		}
-		emit(application.ProgressInfo, "Found skill: ticket-generator")
-		emit(application.ProgressInfo, "Reading ticket-generator skill instructions")
+		emit(application.ProgressInfo, "Found skill: "+name)
+		emit(application.ProgressInfo, "Reading "+name+" skill instructions")
 		body, err := r.readFile(path)
 		if err != nil {
-			emit(application.ProgressWarning, "Failed to load ticket-generator skill")
+			emit(application.ProgressWarning, "Failed to load "+name+" skill")
 			emit(application.ProgressInfo, "Using built-in wlog ticket generator")
-			return application.TicketSkill{Name: "ticket-generator", CheckedPaths: checked, FailureReason: err.Error()}, nil
+			return application.TicketSkill{Name: name, CheckedPaths: checked, FailureReason: err.Error()}, nil
 		}
 		if err := ctx.Err(); err != nil {
 			return application.TicketSkill{}, err
 		}
-		value := application.TicketSkill{Name: "ticket-generator", Path: path, Loaded: true, Native: native, CheckedPaths: checked}
+		value := application.TicketSkill{Name: name, Path: path, Loaded: true, Native: native, CheckedPaths: checked}
 		switch provider {
 		case "codex":
-			value.Invocation = "$ticket-generator"
+			value.Invocation = "$" + name
 		case "claude":
-			value.Invocation = `Skill({skill: "ticket-generator"})`
+			value.Invocation = fmt.Sprintf(`Skill({skill: %q})`, name)
 		case "opencode":
-			value.Invocation = `skill({name: "ticket-generator"})`
+			value.Invocation = fmt.Sprintf(`skill({name: %q})`, name)
 		}
 		if native {
 			// wlog verified the complete file, but does not claim the agent has
 			// read it. The provider must load it using its native mechanism.
-			emit(application.ProgressSuccess, "ticket-generator skill loaded by wlog")
-			emit(application.ProgressInfo, "ticket-generator will be requested during AI generation")
+			emit(application.ProgressSuccess, name+" skill loaded by wlog")
+			emit(application.ProgressInfo, name+" will be requested during AI generation")
 		} else {
 			value.Instructions = string(body)
-			emit(application.ProgressSuccess, "ticket-generator skill loaded by wlog")
+			emit(application.ProgressSuccess, name+" skill loaded by wlog")
 		}
 		return value, nil
 	}
-	emit(application.ProgressWarning, "ticket-generator skill not found")
+	emit(application.ProgressWarning, name+" skill not found")
 	emit(application.ProgressInfo, "Using built-in wlog ticket generator")
-	return application.TicketSkill{Name: "ticket-generator", CheckedPaths: checked, FailureReason: "skill not found in checked locations"}, nil
+	return application.TicketSkill{Name: name, CheckedPaths: checked, FailureReason: "skill not found in checked locations"}, nil
 }
 
 func skillPaths(provider, directory, home string) ([]string, bool) {
+	return namedSkillPaths(provider, directory, home, application.TicketGeneratorSkill)
+}
+
+func namedSkillPaths(provider, directory, home, name string) ([]string, bool) {
 	var roots []string
 	switch provider {
 	case "codex":
@@ -141,7 +148,7 @@ func skillPaths(provider, directory, home string) ([]string, bool) {
 	}
 	paths := make([]string, 0, len(roots))
 	for _, root := range roots {
-		paths = append(paths, filepath.Join(root, "ticket-generator", "SKILL.md"))
+		paths = append(paths, filepath.Join(root, name, "SKILL.md"))
 	}
 	return paths, provider != "custom"
 }

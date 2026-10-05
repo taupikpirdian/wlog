@@ -46,7 +46,7 @@ type ticketSkillsStub struct {
 	err        error
 }
 
-func (s *ticketSkillsStub) Resolve(_ context.Context, _ string, path string, progress application.ProgressHandler) (application.TicketSkill, error) {
+func (s *ticketSkillsStub) Resolve(_ context.Context, _ string, path, name string, progress application.ProgressHandler) (application.TicketSkill, error) {
 	s.paths = append(s.paths, path)
 	if s.err != nil {
 		return application.TicketSkill{}, s.err

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -96,6 +97,14 @@ func runAISummary(cmd *cobra.Command, input *bufio.Reader, reader SummaryReader,
 func runAIGeneration(cmd *cobra.Command, input *bufio.Reader, reader SummaryReader, date time.Time, key string, options SummaryAIOptions, ticketOnly bool) error {
 	if options.Config == nil || options.Git == nil || options.Agents == nil {
 		return errors.New("AI dependencies are unavailable")
+	}
+	envName, defaultSkill := "WLOG_SUMMARY_SKILL", application.RootCauseSummarySkill
+	if ticketOnly {
+		envName, defaultSkill = "WLOG_TICKET_SKILL", application.TicketGeneratorSkill
+	}
+	skillName, err := application.ResolveTicketSkillName(os.Getenv(envName), defaultSkill)
+	if err != nil {
+		return fmt.Errorf("%s: %w", envName, err)
 	}
 	config, err := options.Config.LoadOrCreate(cmd.Context())
 	if err != nil {
@@ -196,11 +205,11 @@ func runAIGeneration(cmd *cobra.Command, input *bufio.Reader, reader SummaryRead
 	var result application.AIResult
 	var ticket application.GeneratedTicket
 	if ticketOnly {
-		ticket, err = application.GenerateTicketAI(ctx, value, config.AI, options.Agents, worklogsOnly, config.DataDirectory, options.Skills, progress)
+		ticket, err = application.GenerateTicketAI(ctx, value, config.AI, options.Agents, worklogsOnly, config.DataDirectory, options.Skills, progress, skillName)
 	} else {
 		result, err = application.GenerateAI(ctx, value, config.AI, options.Agents, worklogsOnly, config.DataDirectory, progress)
 		if err == nil {
-			result.Ticket, err = application.GenerateTicketAI(ctx, value, config.AI, options.Agents, worklogsOnly, config.DataDirectory, options.Skills, progress)
+			result.Ticket, err = application.GenerateSummaryDetailsAI(ctx, value, config.AI, options.Agents, worklogsOnly, config.DataDirectory, options.Skills, progress, skillName)
 		}
 	}
 	if renderErr := renderer.Err(); renderErr != nil {

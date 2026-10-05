@@ -159,6 +159,11 @@ func (a *commandAgent) run(ctx context.Context, request application.AIRequest, p
 		outputFile = filepath.Join(directory, "response.txt")
 		args = append([]string{"exec"}, args...)
 		args = append(args, "--sandbox", "read-only", "--ephemeral", "--skip-git-repo-check", "--color", "never", "--json")
+		if !request.Context.TicketOnly || request.SummaryDetails || request.Skill.Name == application.RootCauseSummarySkill {
+			// Summary supplies its own instructions and explicitly selected skill.
+			// Do not inherit AGENTS.md references to RTK or other ticket skills.
+			args = append(args, "--config", "project_doc_max_bytes=0")
+		}
 		if len(noteURLs) > 0 {
 			args = append(args, "--config", `web_search="live"`)
 		}
@@ -188,7 +193,7 @@ func (a *commandAgent) run(ctx context.Context, request application.AIRequest, p
 		}
 		if request.Skill.Loaded && request.Skill.Native {
 			tools += ",Skill"
-			allowed += ",Skill(ticket-generator)"
+			allowed += ",Skill(" + request.Skill.NameOrDefault() + ")"
 		}
 		if request.Context.TicketOnly {
 			allowed += ",Bash(git -C * diff *),Bash(git -C * show *),Bash(git -C * log *),Bash(git -C * cat-file *)"

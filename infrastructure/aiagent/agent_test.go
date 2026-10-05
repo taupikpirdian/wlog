@@ -137,6 +137,12 @@ func TestProviderProcessFormatsAndExplicitRepositoryDirectory(t *testing.T) {
 			if record.Directory != canonical || record.GitDirectory != "" || !strings.Contains(record.Input, "ACTUAL SOURCE CODE CHANGE") {
 				t.Fatalf("record=%+v", record)
 			}
+			if provider == "codex" && !strings.Contains(strings.Join(record.Args, " "), "--config project_doc_max_bytes=0") {
+				t.Fatal("summary inherited repository instructions")
+			}
+			if !strings.Contains(record.Input, "Do not read RTK.md, AGENTS.md") {
+				t.Fatal("missing summary instruction boundary")
+			}
 			if !strings.Contains(record.Input, "output_language: en") || !strings.Contains(record.Input, "prose in English") || strings.Contains(record.Input, "output_language: id") {
 				t.Fatal("selected language was not sent to the provider")
 			}
