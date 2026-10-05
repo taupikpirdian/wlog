@@ -163,7 +163,7 @@ On first use, `wl` creates:
 
 Subsequent runs reuse the same configuration and database and apply any pending migrations. On macOS and Linux, new directories and files use permissions restricted to the current user. On Windows, access follows Windows folder permissions; Unix permission bits do not set Windows ACLs.
 
-The dashboard displays the active session's ticket, title, repository folder name, start time, and elapsed duration, followed by today's tracked time per ticket. Each ticket lists the repository folder names associated with its sessions and activities today. When there is no work, it displays `No active session` and a total of `0m`. Sessions spanning midnight contribute only the portion that falls within today; the active session's elapsed duration still includes all time since it started.
+The dashboard displays the active session's ticket, title, repository folder name, start time, and elapsed duration, followed by today's tracked time per ticket. Each ticket lists the repository folder names associated with its sessions and activities today, followed by the title of its first session contributing to today. Tickets without a session show the subject of their first commit today; ties use the lowest stored ID, and missing titles display `-`. This also applies to `wl status`. When there is no work, it displays `No active session` and a total of `0m`. Sessions spanning midnight contribute only the portion that falls within today; the active session's elapsed duration still includes all time since it started.
 
 Review today's events:
 

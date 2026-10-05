@@ -67,7 +67,11 @@ func renderDashboard(v domain.View) string {
 		b.WriteString("No tracked sessions today\n")
 	}
 	for _, ticket := range v.Tickets {
-		fmt.Fprintf(&b, "%-12s %s  [repo: %s]\n", safeText(ticket.Key), dailyDuration(ticket.Seconds), repositoryNames(ticket.Repositories))
+		title := strings.TrimSpace(safeText(ticket.Title))
+		if title == "" {
+			title = "-"
+		}
+		fmt.Fprintf(&b, "%-12s %s  [repo: %s] — %s\n", safeText(ticket.Key), dailyDuration(ticket.Seconds), repositoryNames(ticket.Repositories), title)
 	}
 	fmt.Fprintf(&b, "Total        %s\n", dailyDuration(v.TotalSeconds))
 	for _, section := range []struct {

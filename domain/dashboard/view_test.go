@@ -41,7 +41,7 @@ func TestDailyViewClipsAndAggregatesWithoutChangingSources(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []domain.TicketSummary{{Key: "OOT-3668", Seconds: 2700}, {Key: "OOT-3747", Seconds: 4500}, {Key: "OOT-3751", Seconds: 9000}, {Key: "OOT-9", Seconds: 0}}
+	want := []domain.TicketSummary{{Key: "OOT-3668", Seconds: 2700}, {Key: "OOT-3747", Seconds: 4500}, {Key: "OOT-3751", Title: "Fix tax calculation", Seconds: 9000}, {Key: "OOT-9", Title: "fix", Seconds: 0}}
 	if !reflect.DeepEqual(view.Tickets, want) || view.TotalSeconds != 16200 || view.Active == nil || view.Active.ElapsedSeconds != 6120 {
 		t.Fatalf("view: %+v", view)
 	}
@@ -188,5 +188,37 @@ func TestInvalidSnapshots(t *testing.T) {
 				t.Fatalf("error: %v", err)
 			}
 		})
+	}
+}
+
+func TestTicketTitlesUseFirstDailySessionOrCommit(t *testing.T) {
+	now := instant("2026-10-02T12:00:00Z")
+	first := finished(2, "OOT-1", "2026-10-01T23:30:00Z", "2026-10-02T00:30:00Z")
+	first.Title = "Overnight work"
+	later := finished(3, "OOT-1", "2026-10-02T09:00:00Z", "2026-10-02T10:00:00Z")
+	later.Title = "Later session"
+	old := finished(1, "OOT-1", "2026-10-01T09:00:00Z", "2026-10-01T10:00:00Z")
+	old.Title = "Yesterday"
+	zero := finished(4, "OOT-3", "2026-10-02T11:00:00Z", "2026-10-02T11:00:00Z")
+	zero.Title = "meeting be"
+	view, err := domain.Build(domain.Snapshot{Sessions: []session.Session{later, old, first, zero}, Activities: []domain.Activity{
+		{ID: 8, TicketKey: "OOT-2", Type: "GIT_COMMIT", Text: "Later commit", At: now},
+		{ID: 7, TicketKey: "OOT-2", Type: "GIT_COMMIT", Text: "Same timestamp, higher ID", At: now.Add(-time.Hour)},
+		{ID: 6, TicketKey: "OOT-2", Type: "GIT_COMMIT", Text: " First commit\r\n\nCommit body", At: now.Add(-time.Hour)},
+		{ID: 5, TicketKey: "OOT-2", Type: "GIT_COMMIT", Text: "Yesterday's commit", At: now.Add(-24 * time.Hour)},
+		{ID: 4, TicketKey: "OOT-1", Type: "GIT_COMMIT", Text: "Commit on session ticket", At: now},
+		{ID: 3, TicketKey: "OOT-4", Type: "NOTE", Text: "A note is not a session title", At: now},
+	}}, now, time.UTC)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []domain.TicketSummary{
+		{Key: "OOT-1", Title: "Overnight work", Seconds: 5400},
+		{Key: "OOT-2", Title: "First commit"},
+		{Key: "OOT-3", Title: "meeting be"},
+		{Key: "OOT-4"},
+	}
+	if !reflect.DeepEqual(view.Tickets, want) {
+		t.Fatalf("titles: %+v want %+v", view.Tickets, want)
 	}
 }

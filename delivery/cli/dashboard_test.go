@@ -45,7 +45,7 @@ func TestDailyCommandsRenderViewsAndClose(t *testing.T) {
 		want   []string
 		absent string
 	}{
-		{nil, []string{"DEV WORKLOG", "OOT-3668 — Support QA", "Started : 13:00", "Duration: 30m", "OOT-3751     2h 30m", "Total        3h", "Unsessioned", "Unassigned"}, "wl ready"},
+		{nil, []string{"DEV WORKLOG", "OOT-3668 — Support QA", "Started : 13:00", "Duration: 30m", "OOT-3751     2h 30m  [repo: -] — Fix tax calculation", "OOT-9        0m  [repo: -] — outside session", "Total        3h", "Unsessioned", "Unassigned"}, "wl ready"},
 		{[]string{"today"}, []string{"02 Oct 2026", "09:00  START   OOT-3751", "09:15  NOTE    OOT-3751  Check tax calculation", "10:12  COMMIT  OOT-3751  fix tax calculation [abc1234]", "11:30  STOP    OOT-3751", "13:00  START   OOT-3668", "Total tracked: 3h"}, "STOP    OOT-3668"},
 	} {
 		reads, closes := 0, 0

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/taupikpirdian/wlog/domain/session"
@@ -42,6 +43,7 @@ type Event struct {
 
 type TicketSummary struct {
 	Key          string
+	Title        string
 	Seconds      int64
 	Repositories []string
 }
@@ -67,6 +69,18 @@ func Build(source Snapshot, now time.Time, location *time.Location) (View, error
 	start := time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, location)
 	view := View{Now: now, Start: start, End: start.AddDate(0, 0, 1), Location: location}
 	totals := map[string]int64{}
+	sessionTitles := map[string]Event{}
+	commitTitles := map[string]Event{}
+	selectTitle := func(titles map[string]Event, key, text string, at time.Time, id int64) {
+		text = strings.TrimSpace(text)
+		if text == "" {
+			return
+		}
+		previous, exists := titles[key]
+		if !exists || at.Before(previous.At) || at.Equal(previous.At) && id < previous.SourceID {
+			titles[key] = Event{Text: text, At: at, SourceID: id}
+		}
+	}
 	repositories := map[string]map[string]struct{}{}
 	addRepository := func(key, repository string) {
 		if repository == "" {
@@ -124,6 +138,9 @@ func Build(source Snapshot, now time.Time, location *time.Location) (View, error
 			totals[s.TicketKey] += 0
 			addRepository(s.TicketKey, repository)
 		}
+		if until.After(from) || view.contains(s.StartedAt) || s.Status == session.Completed && view.contains(*s.EndedAt) {
+			selectTitle(sessionTitles, s.TicketKey, s.Title, s.StartedAt, s.ID)
+		}
 	}
 	for _, a := range source.Activities {
 		kind, text := a.Type, a.Text
@@ -146,6 +163,10 @@ func Build(source Snapshot, now time.Time, location *time.Location) (View, error
 			view.Unassigned = append(view.Unassigned, event)
 		} else {
 			totals[a.TicketKey] += 0
+			if kind == "COMMIT" {
+				subject := strings.SplitN(strings.TrimSpace(text), "\n", 2)[0]
+				selectTitle(commitTitles, a.TicketKey, subject, a.At, a.ID)
+			}
 			addRepository(a.TicketKey, a.Repository)
 			if a.SessionID == nil {
 				view.Unsessioned = append(view.Unsessioned, event)
@@ -153,7 +174,11 @@ func Build(source Snapshot, now time.Time, location *time.Location) (View, error
 		}
 	}
 	for key, seconds := range totals {
-		summary := TicketSummary{Key: key, Seconds: seconds}
+		title := sessionTitles[key].Text
+		if title == "" {
+			title = commitTitles[key].Text
+		}
+		summary := TicketSummary{Key: key, Title: title, Seconds: seconds}
 		for repository := range repositories[key] {
 			summary.Repositories = append(summary.Repositories, repository)
 		}
