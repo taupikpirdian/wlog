@@ -46,6 +46,11 @@ func (r revisions) Files(_ context.Context, _, rev string) ([]string, error) {
 }
 func (r revisions) ChangedFiles(_ context.Context, _, base, end string) ([]string, error) {
 	var files []string
+	for path := range r.trees[base] {
+		if _, ok := r.trees[end][path]; !ok {
+			files = append(files, path)
+		}
+	}
 	for path, text := range r.trees[end] {
 		if before, ok := r.trees[base][path]; !ok || before != text {
 			files = append(files, path)
@@ -53,6 +58,52 @@ func (r revisions) ChangedFiles(_ context.Context, _, base, end string) ([]strin
 	}
 	sort.Strings(files)
 	return files, nil
+}
+
+func TestAddedAndRemovedHelperEnvironmentVariables(t *testing.T) {
+	helper := "package config\nimport \"os\"\nfunc lookup(name, fallback string) string { value := os.Getenv(name); if value == \"\" { return fallback }; return value }\n"
+	d := application.Detector{Git: revisions{trees: map[string]map[string]string{
+		"base": {"config.go": helper + `func config() { lookup("CIAM_ISSUER_MOBILE", "mobile-issuer"); lookup("CIAM_ISSUER_WEB", "web-issuer") }`},
+		"end":  {"config.go": helper + `func config() { lookup("CLIENT_ID_MOBILE_INTROSPECT", "mobile-id"); lookup("CLIENT_ID_WEB_INTROSPECT", "web-id") }`},
+	}}, Extractors: envdetect.DefaultExtractors()}
+	got := d.Check(context.Background(), []domain.Range{{Start: "base", End: "end"}})
+	if got.Status != "checked" || !reflect.DeepEqual(got.NewVariables, []string{"CLIENT_ID_MOBILE_INTROSPECT", "CLIENT_ID_WEB_INTROSPECT"}) || !reflect.DeepEqual(got.RemovedVariables, []string{"CIAM_ISSUER_MOBILE", "CIAM_ISSUER_WEB"}) || got.Examples["CLIENT_ID_MOBILE_INTROSPECT"] != "mobile-id" || got.RemovedExamples["CIAM_ISSUER_WEB"] != "web-issuer" {
+		t.Fatalf("got=%+v", got)
+	}
+	encoded, _ := json.Marshal(got)
+	if strings.Contains(string(encoded), "mobile-id") || strings.Contains(string(encoded), "web-issuer") {
+		t.Fatal("example values leaked into AI evidence")
+	}
+}
+
+func TestRemovedFileAndRenameEnvironmentComparison(t *testing.T) {
+	for _, tc := range []struct {
+		end     map[string]string
+		removed []string
+	}{
+		{map[string]string{}, []string{"API_URL"}},
+		{map[string]string{"new.go": `os.Getenv("API_URL")`}, []string{}},
+	} {
+		d := application.Detector{Git: revisions{trees: map[string]map[string]string{"base": {"old.go": `os.Getenv("API_URL")`}, "end": tc.end}}, Extractors: envdetect.DefaultExtractors()}
+		got := d.Check(context.Background(), []domain.Range{{Start: "base", End: "end"}})
+		if got.Status != "checked" || !reflect.DeepEqual(got.RemovedVariables, tc.removed) || len(got.NewVariables) != 0 {
+			t.Fatalf("got=%+v", got)
+		}
+	}
+}
+
+func TestTemplateValueChangeAndRuntimeValues(t *testing.T) {
+	d := application.Detector{Git: revisions{trees: map[string]map[string]string{
+		"base": {".env.example": "API_URL=https://old.example.com\n", ".env": "RUNTIME_ONLY=private-runtime-value\n"},
+		"end":  {".env.example": "API_URL=https://new.example.com\n", ".env": "RUNTIME_ONLY=another-runtime-value\n"},
+	}}, Extractors: envdetect.DefaultExtractors()}
+	got := d.Check(context.Background(), []domain.Range{{Start: "base", End: "end"}})
+	if got.Status != "checked" || !reflect.DeepEqual(got.ModifiedVariables, []string{"API_URL"}) || len(got.NewVariables) != 0 || got.PreviousExamples["API_URL"] != "https://old.example.com" || got.Examples["API_URL"] != "https://new.example.com" {
+		t.Fatalf("got=%+v", got)
+	}
+	if _, exists := got.Examples["RUNTIME_ONLY"]; exists {
+		t.Fatal("runtime value retained")
+	}
 }
 func (r revisions) ReadFile(_ context.Context, _, rev, path string) (string, error) {
 	return r.trees[rev][path], nil

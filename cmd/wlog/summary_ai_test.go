@@ -79,7 +79,7 @@ func aiRepository(t *testing.T) (string, string) {
 	if err := os.WriteFile(file, []byte("package fixture\nconst Value = 2\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(envFile, []byte("EXISTING_ENV=new\nCAPTURED_ENV=private-fixture-value\n"), 0600); err != nil {
+	if err := os.WriteFile(envFile, []byte("EXISTING_ENV=new\nCAPTURED_ENV=sample-fixture-value\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
 	run("add", "value.go", ".env.example")
@@ -88,7 +88,7 @@ func aiRepository(t *testing.T) (string, string) {
 	if err := os.WriteFile(file, []byte("package fixture\nconst Value = 999\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(envFile, []byte("EXISTING_ENV=new\nCAPTURED_ENV=private-fixture-value\nHEAD_ONLY_ENV=placeholder\n"), 0600); err != nil {
+	if err := os.WriteFile(envFile, []byte("EXISTING_ENV=new\nCAPTURED_ENV=sample-fixture-value\nHEAD_ONLY_ENV=placeholder\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
 	run("add", "value.go", ".env.example")
@@ -162,6 +162,10 @@ func TestAISummaryReadsDatabaseRepositoriesOutsideCurrentDirectory(t *testing.T)
 		if request.Context.Summary.EnvironmentChanges.Status != "checked" || len(request.Context.Summary.EnvironmentChanges.NewVariables) != 1 || request.Context.Summary.EnvironmentChanges.NewVariables[0] != "CAPTURED_ENV" {
 			t.Fatalf("missing authoritative detector result: %+v", request.Context.Summary.EnvironmentChanges)
 		}
+		prompt, err := application.BuildAIPrompt(request)
+		if err != nil || strings.Contains(prompt, "sample-fixture-value") {
+			t.Fatal("template example leaked into AI prompt")
+		}
 		if request.Context.OutputLanguage != application.LanguageEnglish {
 			t.Fatalf("selected language lost between repositories: %q", request.Context.OutputLanguage)
 		}
@@ -194,10 +198,14 @@ func TestAISummaryReadsDatabaseRepositoriesOutsideCurrentDirectory(t *testing.T)
 	if !strings.Contains(out.String(), "New environment variables:\n- CAPTURED_ENV\n") || strings.Count(out.String(), "- CAPTURED_ENV\n") != 1 {
 		t.Fatalf("new captured environment missing or duplicated: %q", out.String())
 	}
-	for _, excluded := range []string{"EXISTING_ENV", "HEAD_ONLY_ENV", "private-fixture-value"} {
+	for _, excluded := range []string{"HEAD_ONLY_ENV"} {
 		if strings.Contains(out.String(), excluded) {
 			t.Fatalf("non-new/uncaptured environment or value leaked into summary: %q", out.String())
 		}
+	}
+
+	if !strings.Contains(out.String(), `CAPTURED_ENV="sample-fixture-value"`) || !strings.Contains(out.String(), "Changed environment example/default values:\n- EXISTING_ENV") {
+		t.Fatalf("missing template examples: %s", out.String())
 	}
 
 	var activityCount, storedContext int
@@ -220,7 +228,7 @@ func TestAISummaryReadsDatabaseRepositoriesOutsideCurrentDirectory(t *testing.T)
 	if err := plain.Execute(); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(out.String(), "New environment variables:\n- CAPTURED_ENV\n") || strings.Contains(out.String(), "HEAD_ONLY_ENV") || strings.Contains(out.String(), "private-fixture-value") || len(agent.requests) != 3 {
+	if !strings.Contains(out.String(), "New environment variables:\n- CAPTURED_ENV\n") || strings.Contains(out.String(), "HEAD_ONLY_ENV") || len(agent.requests) != 3 {
 		t.Fatalf("non-AI environment check=%q", out.String())
 	}
 

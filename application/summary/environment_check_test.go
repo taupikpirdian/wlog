@@ -41,3 +41,19 @@ func TestEnvironmentUnavailableDependenciesDegrade(t *testing.T) {
 		t.Fatalf("got=%+v", got)
 	}
 }
+
+func TestEnvironmentCapturedCommitsIgnoreMissingSessionRepository(t *testing.T) {
+	date := time.Date(2026, 10, 8, 0, 0, 0, 0, time.UTC)
+	ended := date.Add(2 * time.Hour)
+	uncaptured := "/uncaptured-session-repository"
+	value := application.TicketAIContext{Summary: application.Result{Day: domain.Day{Date: date}}, AllTicketWorklogs: dashboard.Snapshot{
+		Sessions:   []session.Session{{StartedAt: date, EndedAt: &ended}, {Repository: &uncaptured, StartedAt: date, EndedAt: &ended}},
+		Activities: []dashboard.Activity{{Type: "GIT_COMMIT", Repository: "/recorded", Hash: "today", At: date.Add(time.Hour)}},
+	}}
+	d := &recordingEnvironmentDetector{}
+	git := &gitFake{}
+	got := application.NewEnvironmentCheck(git, d)(context.Background(), value)
+	if got.Status != "checked" || !reflect.DeepEqual(d.ranges, []environment.Range{{Repository: "/recorded", Start: "todayparent", End: "today"}}) {
+		t.Fatalf("got=%+v ranges=%v", got, d.ranges)
+	}
+}

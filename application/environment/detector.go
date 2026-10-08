@@ -60,6 +60,14 @@ func (d *Detector) extract(path, text string) (domain.References, bool) {
 			}
 		}
 		refs.Imports = append(refs.Imports, r.Imports...)
+		if refs.Examples == nil {
+			refs.Examples = map[string]string{}
+		}
+		for name, value := range r.Examples {
+			if domain.ValidName(name) {
+				refs.Examples[name] = value
+			}
+		}
 		if refs.Resources == nil {
 			refs.Resources = map[string][]string{}
 		}
@@ -94,7 +102,28 @@ func sorted(set map[string]bool) []string {
 	return out
 }
 
-// readIndex retains extracted names only, never source/configuration values.
+func exampleValues(index map[string]domain.References) map[string]string {
+	paths := make([]string, 0, len(index))
+	for path := range index {
+		paths = append(paths, path)
+	}
+	sort.Strings(paths)
+	values := map[string]string{}
+	// Templates take precedence over source defaults; path order breaks ties.
+	for _, template := range []bool{false, true} {
+		for _, path := range paths {
+			if IsTemplate(path) != template {
+				continue
+			}
+			for name, value := range index[path].Examples {
+				values[name] = value
+			}
+		}
+	}
+	return values
+}
+
+// readIndex retains names and example defaults, never runtime environment values.
 func (d *Detector) readIndex(ctx context.Context, repository, revision string) (map[string]domain.References, bool) {
 	files, err := d.Git.Files(ctx, repository, revision)
 	if err != nil {
@@ -153,7 +182,9 @@ func (d *Detector) Check(ctx context.Context, ranges []domain.Range) domain.Chan
 	if d.Git == nil || len(ranges) == 0 {
 		return result
 	}
-	newNames, missing, ci := map[string]bool{}, map[string]bool{}, map[string]bool{}
+	newNames, missing, ci, removed, modified := map[string]bool{}, map[string]bool{}, map[string]bool{}, map[string]bool{}, map[string]bool{}
+	result.Examples, result.RemovedExamples = map[string]string{}, map[string]string{}
+	result.PreviousExamples = map[string]string{}
 	complete, successful := true, 0
 	type revisionIndex struct {
 		files    map[string]domain.References
@@ -182,6 +213,7 @@ func (d *Detector) Check(ctx context.Context, ranges []domain.Range) domain.Chan
 		}
 		seen[key] = true
 		baseNames := map[string]bool{}
+		baseExamples := map[string]string{}
 		if r.Start != "" {
 			base := load(r.Repository, r.Start)
 			// Incomplete base evidence cannot establish that a name is new.
@@ -194,6 +226,7 @@ func (d *Detector) Check(ctx context.Context, ranges []domain.Range) domain.Chan
 					baseNames[name] = true
 				}
 			}
+			baseExamples = exampleValues(base.files)
 		}
 		files, err := d.Git.ChangedFiles(ctx, r.Repository, r.Start, r.End)
 		if err != nil {
@@ -206,6 +239,32 @@ func (d *Detector) Check(ctx context.Context, ranges []domain.Range) domain.Chan
 			continue
 		}
 		complete = complete && end.complete
+		endNames := map[string]bool{}
+		endExamples := exampleValues(end.files)
+		for name, value := range endExamples {
+			result.Examples[name] = value
+		}
+		for _, refs := range end.files {
+			for _, name := range append(refs.Names, refs.CIOnly...) {
+				endNames[name] = true
+			}
+		}
+		if end.complete {
+			for name := range baseNames {
+				if !endNames[name] {
+					removed[name] = true
+					if value, ok := baseExamples[name]; ok {
+						result.RemovedExamples[name] = value
+					}
+				}
+			}
+		}
+		for name, before := range baseExamples {
+			if after, ok := endExamples[name]; ok && endNames[name] && before != after {
+				modified[name] = true
+				result.PreviousExamples[name] = before
+			}
+		}
 		template := map[string]bool{}
 		hasTemplate := false
 		for path, refs := range end.files {
@@ -248,6 +307,8 @@ func (d *Detector) Check(ctx context.Context, ranges []domain.Range) domain.Chan
 		}
 	}
 	result.NewVariables, result.MissingFromTemplate, result.CIOnlyVariables = sorted(newNames), sorted(missing), sorted(ci)
+	result.RemovedVariables = sorted(removed)
+	result.ModifiedVariables = sorted(modified)
 	return result
 }
 

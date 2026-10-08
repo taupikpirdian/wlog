@@ -26,11 +26,9 @@ func NewEnvironmentCheck(git GitService, detector EnvironmentDetector) Environme
 				selected.Activities = append(selected.Activities, activity)
 			}
 		}
-		for _, session := range value.AllTicketWorklogs.Sessions {
-			if session.StartedAt.Before(end) && (session.EndedAt == nil || session.EndedAt.After(start)) {
-				selected.Sessions = append(selected.Sessions, session)
-			}
-		}
+		// Only captured commits define environment evidence. Sessions may have
+		// no repository (manual work) or no captured changes; neither invalidates
+		// the immutable ranges recorded on commit activities.
 		value.AllTicketWorklogs = selected
 		collected, err := CollectCode(ctx, value, git)
 		if err != nil {

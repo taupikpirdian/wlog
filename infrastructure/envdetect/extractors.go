@@ -91,7 +91,7 @@ func DefaultExtractors() []application.Extractor {
 	// Captures contain literal identifiers only; dynamic expressions do not match.
 	const literal = `["']([A-Za-z_][A-Za-z0-9_]*)["']`
 	return []application.Extractor{
-		patterns([]string{".go"}, `\bos\.(?:Getenv|LookupEnv)\s*\(\s*`+literal+`\s*[,)]`),
+		GoExtractor{},
 		patterns([]string{".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs"}, `\b(?:process|Bun)\.env\.([A-Za-z_][A-Za-z0-9_]*)\b`, `\b(?:process|Bun)\.env\s*\[\s*`+literal+`\s*\]`, `\bDeno\.env\.get\s*\(\s*`+literal+`\s*[,)]`),
 		patterns([]string{".py"}, `\bos\.(?:getenv|environ\.get)\s*\(\s*`+literal+`\s*[,)]`, `\bos\.environ\s*\[\s*`+literal+`\s*\]`),
 		patterns([]string{".php"}, `\b(?:getenv|env)\s*\(\s*`+literal+`\s*[,)]`, `\$_(?:ENV|SERVER)\s*\[\s*`+literal+`\s*\]`),
@@ -201,6 +201,7 @@ var exported = regexp.MustCompile(`(?m)^\s*export\s+([A-Za-z_][A-Za-z0-9_]*)(?:\
 
 func (AssignmentExtractor) Extract(path string, text string) (domain.References, error) {
 	set := map[string]bool{}
+	examples := map[string]string{}
 	ext := filepath.Ext(path)
 	shell := ext == ".sh" || ext == ".bash" || ext == ".zsh"
 	for _, p := range []*regexp.Regexp{assignment, exported} {
@@ -210,7 +211,22 @@ func (AssignmentExtractor) Extract(path string, text string) (domain.References,
 			}
 		}
 	}
-	return domain.References{Names: names(set)}, nil
+	if application.IsTemplate(path) {
+		for _, line := range strings.Split(text, "\n") {
+			line = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(line), "export "))
+			parts := strings.SplitN(line, "=", 2)
+			if len(parts) == 2 && namePattern.MatchString(strings.TrimSpace(parts[0])) {
+				value := strings.TrimSpace(parts[1])
+				if len(value) >= 2 && (value[0] == '\'' || value[0] == '"') && value[len(value)-1] == value[0] {
+					value = value[1 : len(value)-1]
+				} else if i := strings.Index(value, " #"); i >= 0 {
+					value = strings.TrimSpace(value[:i])
+				}
+				examples[strings.TrimSpace(parts[0])] = value
+			}
+		}
+	}
+	return domain.References{Names: names(set), Examples: examples}, nil
 }
 
 type DockerExtractor struct{}

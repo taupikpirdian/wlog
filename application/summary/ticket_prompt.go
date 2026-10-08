@@ -96,6 +96,10 @@ func BuildTicketPrompt(request AIRequest) (string, error) {
 	value := request.Context
 	value.TicketOnly = true
 	value.OutputLanguage = language
+	value.Repositories = append([]RepositoryAIContext(nil), value.Repositories...)
+	for i := range value.Repositories {
+		value.Repositories[i] = *namesOnlyEnvironmentEvidence(&value.Repositories[i])
+	}
 	// Exclude daily worklog metadata, and keep every recorded repository for
 	// one cross-repository ticket. No repository's full source tree is shipped.
 	evidence := struct {

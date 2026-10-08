@@ -29,3 +29,16 @@ func TestEnvironmentSectionAlwaysUsesApplicationResult(t *testing.T) {
 		}
 	}
 }
+
+func TestEnvironmentExamplesAndRemovedVariables(t *testing.T) {
+	changes := environment.Changes{Status: "checked", NewVariables: []string{"API_URL", "API_TOKEN"}, RemovedVariables: []string{"OLD_URL"}, Examples: map[string]string{"API_URL": "https://example.com", "API_TOKEN": "private-value"}, RemovedExamples: map[string]string{"OLD_URL": "https://old.example.com"}}
+	text := formatEnvironmentChanges(changes)
+	for _, expected := range []string{"New environment variables:\n- API_URL\n- API_TOKEN", `API_URL="https://example.com"`, `API_TOKEN="<redacted>"`, "Removed environment variables:\n- OLD_URL", `OLD_URL="https://old.example.com"`} {
+		if !strings.Contains(text, expected) {
+			t.Fatalf("missing %q in %s", expected, text)
+		}
+	}
+	if strings.Contains(text, "private-value") || strings.Contains(text, "could not be completed") {
+		t.Fatalf("unexpected output: %s", text)
+	}
+}
