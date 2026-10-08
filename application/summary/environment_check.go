@@ -15,7 +15,7 @@ type EnvironmentDetector interface {
 func NewEnvironmentCheck(git GitService, detector EnvironmentDetector) EnvironmentCheck {
 	return func(ctx context.Context, value TicketAIContext) environment.Changes {
 		if git == nil || detector == nil {
-			return environment.Changes{Status: "failed", NewVariables: []string{}, MissingFromTemplate: []string{}}
+			return environment.Changes{Status: "failed", NewVariables: []string{}}
 		}
 		// Other dates belong to the ticket description, not this check. Missing
 		// repositories in unrelated history must not mark today's check incomplete.
@@ -32,7 +32,7 @@ func NewEnvironmentCheck(git GitService, detector EnvironmentDetector) Environme
 		value.AllTicketWorklogs = selected
 		collected, err := CollectCode(ctx, value, git)
 		if err != nil {
-			return environment.Changes{Status: "failed", NewVariables: []string{}, MissingFromTemplate: []string{}}
+			return environment.Changes{Status: "failed", NewVariables: []string{}}
 		}
 		var ranges []environment.Range
 		for _, repo := range collected.Repositories {

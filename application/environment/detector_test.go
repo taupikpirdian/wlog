@@ -111,24 +111,24 @@ func (r revisions) ReadFile(_ context.Context, _, rev, path string) (string, err
 
 func TestRevisionComparisonAndTemplates(t *testing.T) {
 	for _, tc := range []struct {
-		name          string
-		base, end     map[string]string
-		want, missing []string
+		name      string
+		base, end map[string]string
+		want      []string
 	}{
-		{"new duplicate", map[string]string{}, map[string]string{"a.ts": `process.env.API_URL; process.env.API_URL`}, []string{"API_URL"}, []string{}},
-		{"refactor", map[string]string{"a.go": `url := os.Getenv("API_URL")`}, map[string]string{"a.go": `apiURL := os.Getenv("API_URL")`}, []string{}, []string{}},
-		{"existing in unchanged file", map[string]string{"a.py": `os.getenv("API_URL")`}, map[string]string{"a.py": `os.getenv("API_URL")`, "b.ts": `process.env.API_URL`}, []string{}, []string{}},
-		{"empty unsupported", map[string]string{}, map[string]string{"a.txt": "not env"}, []string{}, []string{}},
-		{"dynamic", map[string]string{}, map[string]string{"a.ts": "process.env[key]"}, []string{}, []string{}},
-		{"template present", map[string]string{}, map[string]string{"a.ts": "process.env.API_URL", ".env.example": "API_URL=secret-value"}, []string{"API_URL"}, []string{}},
-		{"template missing", map[string]string{}, map[string]string{"a.ts": "process.env.API_URL", ".env.example": "# template"}, []string{"API_URL"}, []string{"API_URL"}},
-		{"rename", map[string]string{"old.ts": "process.env.API_URL"}, map[string]string{"new.ts": "process.env.API_URL"}, []string{}, []string{}},
-		{"envFrom local manifest", map[string]string{}, map[string]string{"deployment.yaml": "spec:\n  envFrom:\n    - prefix: APP_\n      configMapRef:\n        name: settings\n", "configmap.yaml": "kind: ConfigMap\nmetadata:\n  name: settings\ndata:\n  API_URL: secret-value\n"}, []string{"API_URL", "APP_API_URL"}, []string{}},
+		{"new duplicate", map[string]string{}, map[string]string{"a.ts": `process.env.API_URL; process.env.API_URL`}, []string{"API_URL"}},
+		{"refactor", map[string]string{"a.go": `url := os.Getenv("API_URL")`}, map[string]string{"a.go": `apiURL := os.Getenv("API_URL")`}, []string{}},
+		{"existing in unchanged file", map[string]string{"a.py": `os.getenv("API_URL")`}, map[string]string{"a.py": `os.getenv("API_URL")`, "b.ts": `process.env.API_URL`}, []string{}},
+		{"empty unsupported", map[string]string{}, map[string]string{"a.txt": "not env"}, []string{}},
+		{"dynamic", map[string]string{}, map[string]string{"a.ts": "process.env[key]"}, []string{}},
+		{"template present", map[string]string{}, map[string]string{"a.ts": "process.env.API_URL", ".env.example": "API_URL=secret-value"}, []string{"API_URL"}},
+		{"unrelated template", map[string]string{}, map[string]string{"a.ts": "process.env.API_URL", ".env.example": "# template"}, []string{"API_URL"}},
+		{"rename", map[string]string{"old.ts": "process.env.API_URL"}, map[string]string{"new.ts": "process.env.API_URL"}, []string{}},
+		{"envFrom local manifest", map[string]string{}, map[string]string{"deployment.yaml": "spec:\n  envFrom:\n    - prefix: APP_\n      configMapRef:\n        name: settings\n", "configmap.yaml": "kind: ConfigMap\nmetadata:\n  name: settings\ndata:\n  API_URL: secret-value\n"}, []string{"API_URL", "APP_API_URL"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			d := application.Detector{Git: revisions{trees: map[string]map[string]string{"base": tc.base, "end": tc.end}}, Extractors: envdetect.DefaultExtractors()}
 			got := d.Check(context.Background(), []domain.Range{{Repository: "/recorded", Start: "base", End: "end"}, {Repository: "/recorded", Start: "base", End: "end"}})
-			if got.Status != "checked" || !reflect.DeepEqual(got.NewVariables, tc.want) || !reflect.DeepEqual(got.MissingFromTemplate, tc.missing) {
+			if got.Status != "checked" || !reflect.DeepEqual(got.NewVariables, tc.want) {
 				t.Fatalf("got=%+v", got)
 			}
 			encoded, _ := json.Marshal(got)

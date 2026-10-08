@@ -282,7 +282,7 @@ func TestAIFormatterControlledFactsAndBullets(t *testing.T) {
 	}
 	got := formatAISummary(result)
 	want := "Time:\n2h (3 commits)\n\nGenerated for Logs:\nDetail:\n- Change\n\nResult:\n-\n\nDev By:\nreal@example.com\n\nGenerated for Details Ticket:\n\n" + skillTicketFixture
-	if got != want+"\nEnvironment Changes\n\nEnvironment variable check could not be completed.\n" {
+	if got != want+"\n\nEnvironment Changes\n\nEnvironment variable check could not be completed.\n" {
 		t.Fatalf("got=%q want=%q", got, want)
 	}
 }

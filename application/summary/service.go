@@ -45,7 +45,7 @@ func (s *service) environment(ctx context.Context, value TicketAIContext) enviro
 	if s.checkEnvironment != nil {
 		return s.checkEnvironment(ctx, value)
 	}
-	return environment.Changes{Status: "failed", NewVariables: []string{}, MissingFromTemplate: []string{}}
+	return environment.Changes{Status: "failed", NewVariables: []string{}}
 }
 
 func (s *service) Week(ctx context.Context) ([]domain.Day, error) {

@@ -289,18 +289,17 @@ When note or additional-context URLs are present, wlog enables Codex live web re
 
 Every `wl summary`, including non-AI generation and AI fallbacks, appends one mandatory `Environment Changes` section. Detection belongs to the application, not the AI. It reads immutable blobs at the selected date/ticket's captured commit ranges using the recorded repository paths; it never substitutes current HEAD or the current directory's unrelated changes. Sessions without repository paths or captured commits do not invalidate available commit evidence. Missing or unreadable captured commits still make the check failed or incomplete.
 
-Candidates come from changed files at the end revision. They are compared with environment names in all supported files at the base revision, so refactors, renames, additional uses, and changed defaults do not create new variables. Names are deduplicated and sorted. Existing `.env.example`, `.env.sample`, `.env.template`, and `example.env` files at the end revision are checked for missing names; absence of a template is allowed.
+Candidates come from changed files at the end revision. They are compared with environment names in all supported files at the base revision, so refactors, renames, additional uses, and changed defaults do not create new variables. Names are deduplicated and sorted.
 
 Built-in extractors support Go `os.Getenv`/`LookupEnv` and literal calls to local helpers that pass a parameter to these functions; JavaScript/TypeScript `process.env`, `Bun.env`, and `Deno.env.get`; Python `os.getenv`/`os.environ`; PHP/Laravel `getenv`, `env`, `$_ENV`, and `$_SERVER`; Java/Kotlin `System.getenv` and literal Spring `@Value`/uppercase `environment.getProperty`; .NET `Environment.GetEnvironmentVariable`; Ruby `ENV`/`fetch`; Rust `std::env::var`/`var_os`; shell declarations; Docker `ENV`/`ARG`/`RUN` references; Compose environment maps/lists; Kubernetes env entries and locally resolvable ConfigMap/Secret `envFrom`; and environment template assignments. Generic .NET `configuration["NAME"]` is accepted only for an explicit environment-only `ConfigurationBuilder().AddEnvironmentVariables().Build()` assigned to `configuration` in the same file. GitHub Actions and GitLab CI variables are listed separately as CI-only.
 
 ```text
 Environment Changes
 
+#newenv
+
 New environment variables:
 - API_BASE_URL
-- CLIENT_ID
-
-Missing from environment template:
 - CLIENT_ID
 ```
 

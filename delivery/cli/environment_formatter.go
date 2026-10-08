@@ -8,9 +8,12 @@ import (
 
 func formatEnvironmentChanges(changes environment.Changes) string {
 	var b strings.Builder
-	b.WriteString("\nEnvironment Changes\n\n")
+	b.WriteString("\n\nEnvironment Changes\n\n")
 	if changes.Status != "checked" {
 		b.WriteString("Environment variable check could not be completed.\n")
+	}
+	if len(changes.NewVariables) > 0 || len(changes.CIOnlyVariables) > 0 {
+		b.WriteString("#newenv\n\n")
 	}
 	if len(changes.NewVariables) > 0 {
 		b.WriteString("New environment variables:\n")
@@ -31,10 +34,6 @@ func formatEnvironmentChanges(changes environment.Changes) string {
 		b.WriteString("\nRemoved environment variables:\n")
 		writeSummaryBullets(&b, changes.RemovedVariables)
 		writeEnvironmentExamples(&b, changes.RemovedVariables, changes.RemovedExamples)
-	}
-	if len(changes.MissingFromTemplate) > 0 {
-		b.WriteString("\nMissing from environment template:\n")
-		writeSummaryBullets(&b, changes.MissingFromTemplate)
 	}
 	if len(changes.CIOnlyVariables) > 0 {
 		b.WriteString("\nNew CI-only environment variables:\n")

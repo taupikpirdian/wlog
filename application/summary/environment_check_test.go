@@ -16,7 +16,7 @@ type recordingEnvironmentDetector struct{ ranges []environment.Range }
 
 func (d *recordingEnvironmentDetector) Check(_ context.Context, ranges []environment.Range) environment.Changes {
 	d.ranges = ranges
-	return environment.Changes{Status: "checked", NewVariables: []string{}, MissingFromTemplate: []string{}}
+	return environment.Changes{Status: "checked", NewVariables: []string{}}
 }
 
 func TestEnvironmentCheckSelectedDateAndSameRecordedRanges(t *testing.T) {

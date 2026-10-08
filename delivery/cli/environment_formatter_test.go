@@ -13,7 +13,7 @@ func TestEnvironmentSectionAlwaysUsesApplicationResult(t *testing.T) {
 		want    string
 	}{
 		{environment.Changes{Status: "checked"}, "No new environment variables detected."},
-		{environment.Changes{Status: "checked", NewVariables: []string{"API_URL", "CLIENT_ID"}, MissingFromTemplate: []string{"CLIENT_ID"}}, "Missing from environment template:\n- CLIENT_ID"},
+		{environment.Changes{Status: "checked", NewVariables: []string{"API_URL", "CLIENT_ID"}}, "New environment variables:\n- API_URL\n- CLIENT_ID"},
 		{environment.Changes{Status: "failed"}, "Environment variable check could not be completed."},
 		{environment.Changes{Status: "incomplete", NewVariables: []string{"API_URL"}}, "Environment variable check could not be completed."},
 	} {

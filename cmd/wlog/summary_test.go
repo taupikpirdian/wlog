@@ -65,7 +65,7 @@ func TestSummaryCommandWithDatabaseAndGitEmail(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := "Time:\n2h (1 commit)\n\nGenerated for Logs:\nDetail:\n- Fix bug\n- Add regression test\n- Review code\n\nResult:\n-\n\nDev By:\nintegration@example.com\n"
-	if out.String() != want+"\nEnvironment Changes\n\nEnvironment variable check could not be completed.\n" {
+	if out.String() != want+"\n\nEnvironment Changes\n\nEnvironment variable check could not be completed.\n" {
 		t.Fatalf("stdout=%q want=%q", out.String(), want)
 	}
 	if !strings.Contains(prompts.String(), "Fri, 02 Oct 2026    2h") {

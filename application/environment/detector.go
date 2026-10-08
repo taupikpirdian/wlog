@@ -178,11 +178,11 @@ func (d *Detector) readIndex(ctx context.Context, repository, revision string) (
 // Compare changed end-revision files against the entire supported base tree.
 // Revision indexes are cached within a check for overlapping captured ranges.
 func (d *Detector) Check(ctx context.Context, ranges []domain.Range) domain.Changes {
-	result := domain.Changes{Status: "failed", NewVariables: []string{}, MissingFromTemplate: []string{}}
+	result := domain.Changes{Status: "failed", NewVariables: []string{}}
 	if d.Git == nil || len(ranges) == 0 {
 		return result
 	}
-	newNames, missing, ci, removed, modified := map[string]bool{}, map[string]bool{}, map[string]bool{}, map[string]bool{}, map[string]bool{}
+	newNames, ci, removed, modified := map[string]bool{}, map[string]bool{}, map[string]bool{}, map[string]bool{}
 	result.Examples, result.RemovedExamples = map[string]string{}, map[string]string{}
 	result.PreviousExamples = map[string]string{}
 	complete, successful := true, 0
@@ -265,17 +265,6 @@ func (d *Detector) Check(ctx context.Context, ranges []domain.Range) domain.Chan
 				result.PreviousExamples[name] = before
 			}
 		}
-		template := map[string]bool{}
-		hasTemplate := false
-		for path, refs := range end.files {
-			if !IsTemplate(path) {
-				continue
-			}
-			hasTemplate = true
-			for _, name := range refs.Names {
-				template[name] = true
-			}
-		}
 		successful++
 		for _, path := range files {
 			refs, exists := end.files[path]
@@ -285,9 +274,6 @@ func (d *Detector) Check(ctx context.Context, ranges []domain.Range) domain.Chan
 			for _, name := range refs.Names {
 				if !baseNames[name] {
 					newNames[name] = true
-					if hasTemplate && end.complete && !template[name] {
-						missing[name] = true
-					}
 				}
 			}
 			for _, name := range refs.CIOnly {
@@ -306,7 +292,7 @@ func (d *Detector) Check(ctx context.Context, ranges []domain.Range) domain.Chan
 			result.Status = "checked"
 		}
 	}
-	result.NewVariables, result.MissingFromTemplate, result.CIOnlyVariables = sorted(newNames), sorted(missing), sorted(ci)
+	result.NewVariables, result.CIOnlyVariables = sorted(newNames), sorted(ci)
 	result.RemovedVariables = sorted(removed)
 	result.ModifiedVariables = sorted(modified)
 	return result
